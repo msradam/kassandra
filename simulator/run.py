@@ -3,11 +3,6 @@ Kassandra Simulator — Agentic loop for local testing.
 
 Replicates the GitLab Duo Agent Platform agentic loop locally,
 using either a local MLX model (OpenAI-compatible) or the Anthropic API.
-
-Usage:
-    uv run python -m simulator.run --sample 01-add-batch-endpoint
-    uv run python -m simulator.run --sample 01-add-batch-endpoint --anthropic
-    uv run python -m simulator.run --sample 01-add-batch-endpoint --dry-run
 """
 
 import argparse
@@ -23,7 +18,6 @@ from .tools import TOOLS, ANTHROPIC_TOOLS, execute_tool
 
 
 def load_system_prompt() -> str:
-    """Load the system prompt from prompts/kassandra-system.md."""
     path = Path(config.SYSTEM_PROMPT_PATH)
     if not path.exists():
         print(f"Error: System prompt not found at {path}")
@@ -32,10 +26,8 @@ def load_system_prompt() -> str:
 
 
 def load_sample(sample_name: str) -> str:
-    """Load a sample MR context and diff, combining them into a user message."""
     samples_dir = Path(config.SAMPLES_DIR)
 
-    # Find matching files
     context_file = None
     diff_file = None
     for f in (samples_dir / "mr-contexts").glob("*.json"):
@@ -49,7 +41,9 @@ def load_sample(sample_name: str) -> str:
 
     if not context_file:
         print(f"Error: No MR context found for sample '{sample_name}'")
-        print(f"Available: {[f.stem for f in (samples_dir / 'mr-contexts').glob('*.json')]}")
+        print(
+            f"Available: {[f.stem for f in (samples_dir / 'mr-contexts').glob('*.json')]}"
+        )
         sys.exit(1)
 
     mr_context = json.loads(context_file.read_text())
@@ -58,11 +52,11 @@ def load_sample(sample_name: str) -> str:
     user_message = f"""A merge request has been opened and needs performance testing.
 
 **Merge Request Details:**
-- IID: !{mr_context['iid']}
-- Title: {mr_context['title']}
-- Description: {mr_context['description']}
-- Source Branch: {mr_context['source_branch']}
-- Target Branch: {mr_context['target_branch']}
+- IID: !{mr_context["iid"]}
+- Title: {mr_context["title"]}
+- Description: {mr_context["description"]}
+- Source Branch: {mr_context["source_branch"]}
+- Target Branch: {mr_context["target_branch"]}
 
 **Review Environment URL:** {config.REVIEW_ENV_URL}
 
@@ -77,7 +71,6 @@ Please analyze this merge request, generate appropriate k6 performance tests, ex
 
 
 def call_openai(messages: list, verbose: bool = False) -> dict:
-    """Call local MLX model via OpenAI-compatible API."""
     try:
         from openai import OpenAI
     except ImportError:
@@ -97,7 +90,6 @@ def call_openai(messages: list, verbose: bool = False) -> dict:
         )
         return response
     except Exception as e:
-        # Fallback: try without tools (some MLX models don't support function calling)
         if verbose:
             print(f"  [WARN] Tool-calling failed ({e}), falling back to text mode")
         response = client.chat.completions.create(
@@ -110,7 +102,6 @@ def call_openai(messages: list, verbose: bool = False) -> dict:
 
 
 def call_anthropic(messages: list, system_prompt: str, verbose: bool = False) -> dict:
-    """Call Anthropic API."""
     try:
         import anthropic
     except ImportError:
@@ -119,24 +110,24 @@ def call_anthropic(messages: list, system_prompt: str, verbose: bool = False) ->
 
     client = anthropic.Anthropic()
 
-    # Convert messages from OpenAI format to Anthropic format
     anthropic_messages = []
     for msg in messages:
         if msg["role"] == "system":
-            continue  # system prompt passed separately
+            continue
         if msg["role"] == "tool":
-            # Anthropic uses tool_result content blocks
             for result in msg.get("tool_results", []):
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": result["tool_use_id"],
-                            "content": result["output"],
-                        }
-                    ],
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": result["tool_use_id"],
+                                "content": result["output"],
+                            }
+                        ],
+                    }
+                )
             continue
         anthropic_messages.append(msg)
 
@@ -151,7 +142,6 @@ def call_anthropic(messages: list, system_prompt: str, verbose: bool = False) ->
 
 
 def extract_tool_calls_openai(response) -> list:
-    """Extract tool calls from OpenAI-format response."""
     choice = response.choices[0]
     if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
         return [
@@ -162,28 +152,26 @@ def extract_tool_calls_openai(response) -> list:
             }
             for tc in choice.message.tool_calls
         ]
-    # Fallback: parse tool calls from text content
     content = choice.message.content or ""
     return parse_tool_calls_from_text(content)
 
 
 def extract_tool_calls_anthropic(response) -> list:
-    """Extract tool calls from Anthropic-format response."""
     calls = []
     for block in response.content:
         if block.type == "tool_use":
-            calls.append({
-                "id": block.id,
-                "name": block.name,
-                "arguments": block.input,
-            })
+            calls.append(
+                {
+                    "id": block.id,
+                    "name": block.name,
+                    "arguments": block.input,
+                }
+            )
     return calls
 
 
 def parse_tool_calls_from_text(text: str) -> list:
-    """Fallback parser for models that emit tool calls as text/JSON."""
     calls = []
-    # Pattern 1: JSON blocks with tool/name/arguments
     json_pattern = r'\{[^{}]*"(?:tool|name)":\s*"(\w+)"[^{}]*"(?:args|arguments|input)":\s*(\{[^{}]*\})[^{}]*\}'
     for match in re.finditer(json_pattern, text):
         try:
@@ -193,16 +181,28 @@ def parse_tool_calls_from_text(text: str) -> list:
         except (json.JSONDecodeError, IndexError):
             continue
 
-    # Pattern 2: function-call-like syntax
-    func_pattern = r'(\w+)\((.*?)\)'
+    func_pattern = r"(\w+)\((.*?)\)"
     if not calls:
         for match in re.finditer(func_pattern, text):
             name = match.group(1)
-            if name in {"read_file", "find_files", "grep", "run_command", "create_file", "create_mr_note"}:
+            if name in {
+                "read_file",
+                "find_files",
+                "grep",
+                "run_command",
+                "create_file",
+                "create_mr_note",
+            }:
                 try:
                     args_str = match.group(2)
-                    args = json.loads(args_str) if args_str.startswith("{") else {"path": args_str.strip("'\"")}
-                    calls.append({"id": f"text-{len(calls)}", "name": name, "arguments": args})
+                    args = (
+                        json.loads(args_str)
+                        if args_str.startswith("{")
+                        else {"path": args_str.strip("'\"")}
+                    )
+                    calls.append(
+                        {"id": f"text-{len(calls)}", "name": name, "arguments": args}
+                    )
                 except (json.JSONDecodeError, ValueError):
                     continue
 
@@ -210,7 +210,6 @@ def parse_tool_calls_from_text(text: str) -> list:
 
 
 def build_openai_assistant_message(response) -> dict:
-    """Build an assistant message from OpenAI response."""
     choice = response.choices[0]
     msg = {"role": "assistant"}
     if choice.message.content:
@@ -220,22 +219,26 @@ def build_openai_assistant_message(response) -> dict:
             {
                 "id": tc.id,
                 "type": "function",
-                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                },
             }
             for tc in choice.message.tool_calls
         ]
     return msg
 
 
-def build_openai_tool_results(tool_calls: list, results: list) -> dict:
-    """Build tool result messages for OpenAI format."""
+def build_openai_tool_results(tool_calls: list, results: list) -> list[dict]:
     messages = []
     for tc, result in zip(tool_calls, results):
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": result,
-        })
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            }
+        )
     return messages
 
 
@@ -245,22 +248,16 @@ def run_kassandra(
     dry_run: bool = False,
     verbose: bool = False,
 ):
-    """Main agentic loop."""
     system_prompt = load_system_prompt()
     user_message = load_sample(sample_name)
 
-    if dry_run:
-        # In dry-run mode, block k6 execution
-        original_execute = execute_tool.__wrapped__ if hasattr(execute_tool, "__wrapped__") else None
-
     print(f"\n{'=' * 60}")
-    print(f"  Kassandra Simulator")
+    print("  Kassandra Simulator")
     print(f"  Sample: {sample_name}")
     print(f"  Backend: {'Anthropic' if use_anthropic else 'Local MLX'}")
     print(f"  Dry run: {dry_run}")
     print(f"{'=' * 60}\n")
 
-    # Initialize conversation
     if use_anthropic:
         messages = [{"role": "user", "content": user_message}]
     else:
@@ -269,7 +266,6 @@ def run_kassandra(
             {"role": "user", "content": user_message},
         ]
 
-    # Session log
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     log_path = Path(config.OUTPUT_DIR) / f"session-{timestamp}.log"
@@ -288,13 +284,11 @@ def run_kassandra(
         print(f"\n--- Round {round_num}/{config.MAX_TOOL_ROUNDS} ---")
         log(f"\n--- Round {round_num} ---")
 
-        # Call model
         try:
             if use_anthropic:
                 response = call_anthropic(messages, system_prompt, verbose)
                 tool_calls = extract_tool_calls_anthropic(response)
 
-                # Get text content
                 text_content = ""
                 for block in response.content:
                     if hasattr(block, "text"):
@@ -304,7 +298,6 @@ def run_kassandra(
                     log(f"Assistant: {text_content[:500]}")
                     print(f"  [ASSISTANT] {text_content[:200]}...")
 
-                # Build anthropic assistant message
                 messages.append({"role": "assistant", "content": response.content})
             else:
                 response = call_openai(messages, verbose)
@@ -321,13 +314,11 @@ def run_kassandra(
             print(f"  [ERROR] Model call failed: {e}")
             break
 
-        # No tool calls = done
         if not tool_calls:
             print("\n  [DONE] No more tool calls — agent finished.")
             log("Agent finished (no tool calls)")
             break
 
-        # Execute tool calls
         results = []
         for tc in tool_calls:
             name = tc["name"]
@@ -336,10 +327,13 @@ def run_kassandra(
             print(f"  [TOOL] {name}: {args_preview}")
             log(f"Tool call: {name}({json.dumps(args)})")
 
-            # Dry-run: skip k6 execution
-            if dry_run and name == "run_command" and "k6 run" in args.get("command", ""):
+            if (
+                dry_run
+                and name == "run_command"
+                and "k6 run" in args.get("command", "")
+            ):
                 result = "(dry-run: k6 execution skipped)"
-                print(f"  [DRY-RUN] Skipped k6 execution")
+                print("  [DRY-RUN] Skipped k6 execution")
             else:
                 result = execute_tool(name, args)
 
@@ -349,19 +343,20 @@ def run_kassandra(
                 print(f"  [RESULT] {result_preview}")
             results.append(result)
 
-        # Append tool results
         if use_anthropic:
-            messages.append({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tc["id"],
-                        "content": result,
-                    }
-                    for tc, result in zip(tool_calls, results)
-                ],
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tc["id"],
+                            "content": result,
+                        }
+                        for tc, result in zip(tool_calls, results)
+                    ],
+                }
+            )
         else:
             for msg in build_openai_tool_results(tool_calls, results):
                 messages.append(msg)
