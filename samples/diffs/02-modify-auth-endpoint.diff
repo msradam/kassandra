@@ -1,0 +1,172 @@
+diff --git a/internal/api/routes.go b/internal/api/routes.go
+index 3a1b2c4..b2c3d4e 100644
+--- a/internal/api/routes.go
++++ b/internal/api/routes.go
+@@ -30,6 +30,7 @@ func (s *Server) setupRoutes() {
+ 		r.Route("/users", func(r chi.Router) {
+ 			r.Route("/token", func(r chi.Router) {
+ 				r.Post("/login", s.handleLogin)
++				r.Post("/refresh", s.handleTokenRefresh)
+ 			})
+ 		})
+
+diff --git a/internal/api/auth_handler.go b/internal/api/auth_handler.go
+index 1a2b3c4..e5f6a7b 100644
+--- a/internal/api/auth_handler.go
++++ b/internal/api/auth_handler.go
+@@ -3,6 +3,7 @@ package api
+ import (
+ 	"encoding/json"
+ 	"net/http"
++	"time"
+
+ 	"github.com/grafana/quickpizza/internal/auth"
+ )
+@@ -18,6 +19,7 @@ type LoginResponse struct {
+ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+ 	var req LoginRequest
+ 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
++		s.rateLimiter.RecordFailedAttempt(r.RemoteAddr)
+ 		http.Error(w, "invalid request", http.StatusBadRequest)
+ 		return
+ 	}
+@@ -25,12 +27,21 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+ 	if req.Username == "" || req.Password == "" {
+ 		http.Error(w, "username and password required", http.StatusBadRequest)
+ 		return
+ 	}
+
++	// Check rate limit before authentication attempt
++	if s.rateLimiter.IsBlocked(r.RemoteAddr) {
++		w.Header().Set("Retry-After", "60")
++		http.Error(w, "too many login attempts, try again later", http.StatusTooManyRequests)
++		return
++	}
++
+ 	token, err := s.authService.Authenticate(r.Context(), req.Username, req.Password)
+ 	if err != nil {
++		s.rateLimiter.RecordFailedAttempt(r.RemoteAddr)
+ 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+ 		return
+ 	}
+
++	s.rateLimiter.ResetAttempts(r.RemoteAddr)
+ 	resp := LoginResponse{Token: token}
+ 	w.Header().Set("Content-Type", "application/json")
+ 	json.NewEncoder(w).Encode(resp)
+@@ -38,3 +49,50 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
++
++// TokenRefreshRequest holds the refresh token.
++type TokenRefreshRequest struct {
++	Token string `json:"token"`
++}
++
++// TokenRefreshResponse holds the new token and expiry.
++type TokenRefreshResponse struct {
++	Token     string    `json:"token"`
++	ExpiresAt time.Time `json:"expires_at"`
++}
++
++// handleTokenRefresh issues a new token given a valid existing token.
++// Rate-limited: max 10 refreshes per minute per IP.
++func (s *Server) handleTokenRefresh(w http.ResponseWriter, r *http.Request) {
++	if s.rateLimiter.IsBlocked(r.RemoteAddr) {
++		w.Header().Set("Retry-After", "60")
++		http.Error(w, "too many requests", http.StatusTooManyRequests)
++		return
++	}
++
++	var req TokenRefreshRequest
++	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
++		http.Error(w, "invalid request body", http.StatusBadRequest)
++		return
++	}
++
++	if req.Token == "" {
++		http.Error(w, "token required", http.StatusBadRequest)
++		return
++	}
++
++	newToken, expiresAt, err := s.authService.RefreshToken(r.Context(), req.Token)
++	if err != nil {
++		s.rateLimiter.RecordFailedAttempt(r.RemoteAddr)
++		http.Error(w, "invalid or expired token", http.StatusUnauthorized)
++		return
++	}
++
++	resp := TokenRefreshResponse{
++		Token:     newToken,
++		ExpiresAt: expiresAt,
++	}
++
++	w.Header().Set("Content-Type", "application/json")
++	json.NewEncoder(w).Encode(resp)
++}
+diff --git a/internal/auth/rate_limiter.go b/internal/auth/rate_limiter.go
+new file mode 100644
+index 0000000..c3d4e5f
+--- /dev/null
++++ b/internal/auth/rate_limiter.go
+@@ -0,0 +1,52 @@
++package auth
++
++import (
++	"sync"
++	"time"
++)
++
++// RateLimiter tracks failed login attempts per IP address.
++type RateLimiter struct {
++	mu       sync.RWMutex
++	attempts map[string]*attemptRecord
++	maxFails int
++	window   time.Duration
++}
++
++type attemptRecord struct {
++	count     int
++	firstFail time.Time
++}
++
++// NewRateLimiter creates a rate limiter that blocks after maxFails
++// failures within the given window.
++func NewRateLimiter(maxFails int, window time.Duration) *RateLimiter {
++	return &RateLimiter{
++		attempts: make(map[string]*attemptRecord),
++		maxFails: maxFails,
++		window:   window,
++	}
++}
++
++// IsBlocked returns true if the given key has exceeded the failure limit.
++func (rl *RateLimiter) IsBlocked(key string) bool {
++	rl.mu.RLock()
++	defer rl.mu.RUnlock()
++	rec, ok := rl.attempts[key]
++	if !ok {
++		return false
++	}
++	if time.Since(rec.firstFail) > rl.window {
++		return false
++	}
++	return rec.count >= rl.maxFails
++}
++
++// RecordFailedAttempt increments the failure counter for a key.
++func (rl *RateLimiter) RecordFailedAttempt(key string) {
++	rl.mu.Lock()
++	defer rl.mu.Unlock()
++	rec, ok := rl.attempts[key]
++	if !ok || time.Since(rec.firstFail) > rl.window {
++		rl.attempts[key] = &attemptRecord{count: 1, firstFail: time.Now()}
++		return
++	}
++	rec.count++
++}
++
++// ResetAttempts clears the failure record for a key after successful login.
++func (rl *RateLimiter) ResetAttempts(key string) {
++	rl.mu.Lock()
++	defer rl.mu.Unlock()
++	delete(rl.attempts, key)
++}
