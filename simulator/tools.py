@@ -1,10 +1,7 @@
 """
 Local tool implementations that mirror GitLab Duo Agent Platform tools.
-
-Each tool function takes keyword arguments and returns a string result.
 """
 
-import json
 import os
 import subprocess
 from datetime import datetime, timezone
@@ -103,7 +100,6 @@ TOOLS = [
     },
 ]
 
-# Anthropic tool format (converted from OpenAI)
 ANTHROPIC_TOOLS = [
     {
         "name": t["function"]["name"],
@@ -115,7 +111,6 @@ ANTHROPIC_TOOLS = [
 
 
 def execute_tool(name: str, arguments: dict) -> str:
-    """Dispatch a tool call to the appropriate handler."""
     handlers = {
         "read_file": _read_file,
         "find_files": _find_files,
@@ -134,7 +129,6 @@ def execute_tool(name: str, arguments: dict) -> str:
 
 
 def _read_file(path: str) -> str:
-    """Read a file from the repo directory."""
     full_path = Path(config.REPO_ROOT) / path
     if not full_path.exists():
         return f"Error: File not found: {path}"
@@ -150,26 +144,40 @@ def _read_file(path: str) -> str:
 
 
 def _find_files(pattern: str) -> str:
-    """Find files matching a glob pattern."""
     root = Path(config.REPO_ROOT)
-    matches = sorted(str(p.relative_to(root)) for p in root.glob(pattern) if p.is_file())
+    matches = sorted(
+        str(p.relative_to(root)) for p in root.glob(pattern) if p.is_file()
+    )
     if not matches:
         return f"No files matching pattern: {pattern}"
     if len(matches) > 100:
-        return "\n".join(matches[:100]) + f"\n... ({len(matches)} total, showing first 100)"
+        return (
+            "\n".join(matches[:100])
+            + f"\n... ({len(matches)} total, showing first 100)"
+        )
     return "\n".join(matches)
 
 
 def _grep(pattern: str, path: str = ".") -> str:
-    """Search for a pattern in files."""
     search_path = Path(config.REPO_ROOT) / path
     if not search_path.exists():
         return f"Error: Path not found: {path}"
     try:
         result = subprocess.run(
-            ["grep", "-rn", "--include=*.js", "--include=*.ts", "--include=*.go",
-             "--include=*.py", "--include=*.md", "--include=*.json", "--include=*.yaml",
-             "--include=*.yml", pattern, str(search_path)],
+            [
+                "grep",
+                "-rn",
+                "--include=*.js",
+                "--include=*.ts",
+                "--include=*.go",
+                "--include=*.py",
+                "--include=*.md",
+                "--include=*.json",
+                "--include=*.yaml",
+                "--include=*.yml",
+                pattern,
+                str(search_path),
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -177,19 +185,19 @@ def _grep(pattern: str, path: str = ".") -> str:
         output = result.stdout.strip()
         if not output:
             return f"No matches found for pattern: {pattern}"
-        # Make paths relative to repo root
         output = output.replace(str(config.REPO_ROOT) + "/", "")
         lines = output.split("\n")
         if len(lines) > 50:
-            return "\n".join(lines[:50]) + f"\n... ({len(lines)} total matches, showing first 50)"
+            return (
+                "\n".join(lines[:50])
+                + f"\n... ({len(lines)} total matches, showing first 50)"
+            )
         return output
     except subprocess.TimeoutExpired:
         return "Error: grep timed out after 30 seconds"
 
 
 def _run_command(command: str) -> str:
-    """Execute a shell command."""
-    # Safety: block dangerous commands
     blocked = ["rm -rf /", "mkfs", "dd if=", "> /dev/"]
     for b in blocked:
         if b in command:
@@ -216,9 +224,7 @@ def _run_command(command: str) -> str:
 
 
 def _create_file(path: str, content: str) -> str:
-    """Create or overwrite a file in the repo directory."""
     full_path = Path(config.REPO_ROOT) / path
-    # Safety: don't write outside repo
     try:
         full_path.resolve().relative_to(Path(config.REPO_ROOT).resolve())
     except ValueError:
@@ -229,12 +235,11 @@ def _create_file(path: str, content: str) -> str:
 
 
 def _create_mr_note(body: str) -> str:
-    """Simulate posting an MR note by writing to output directory."""
+    """Writes to output directory instead of posting to GitLab."""
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     output_path = Path(config.OUTPUT_DIR) / f"mr-note-{timestamp}.md"
     output_path.write_text(body, encoding="utf-8")
-    # Print the note with formatting
     print("\n" + "=" * 60)
     print("  MR NOTE (simulated)")
     print("=" * 60)
