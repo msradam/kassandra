@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "agents": {
+    "agents/agent.yml": {
+      "catalog_id": "gid://gitlab/Ai::Catalog::Item/1004714",
+      "name": "Kassandra",
+      "created_at": "2026-03-10T17:53:51.510Z",
+      "item_consumers": {
+        "group": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/5254255"
+        },
+        "project": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/5254256"
+        }
+      },
+      "latest_sync": {
+        "git_tag": "v0.1.0",
+        "catalog_version": "1.0.0",
+        "synced_at": "2026-03-10T17:53:51.510Z",
+        "definition_hash": "ea38fbeda05b4698"
+      }
+    }
+  },
+  "flows": {
+    "flows/flow.yml": {
+      "catalog_id": "gid://gitlab/Ai::Catalog::Item/1004715",
+      "name": "Kassandra Performance Test",
+      "created_at": "2026-03-10T17:53:52.631Z",
+      "item_consumers": {
+        "group": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/5254257"
+        },
+        "project": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/5254258"
+        }
+      },
+      "latest_sync": {
+        "git_tag": "v0.1.0",
+        "catalog_version": "1.0.0",
+        "synced_at": "2026-03-10T17:53:52.631Z",
+        "definition_hash": "915a3c12d1fba64a"
+      }
+    }
+  }
+}
