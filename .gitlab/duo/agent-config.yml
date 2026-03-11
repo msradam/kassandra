@@ -5,6 +5,6 @@ setup_script:
   - chmod +x /usr/local/bin/k6
   - k6 version
   - /usr/local/bin/python3.12 -m pip install --quiet fastapi uvicorn pyjwt
-  - cd demos/pageturn && /usr/local/bin/python3.12 -m uvicorn pageturn.main:app --host 0.0.0.0 --port 8000 &
+  - PYTHONPATH=demos/pageturn nohup /usr/local/bin/python3.12 -m uvicorn pageturn.main:app --host 0.0.0.0 --port 8000 --app-dir demos/pageturn > /tmp/pageturn.log 2>&1 &
   - sleep 3
-  - curl -sf http://localhost:8000/api/health && echo "PageTurn running" || echo "WARN health check failed"
+  - curl -sf http://localhost:8000/api/health && echo "PageTurn running" || (cat /tmp/pageturn.log && echo "FAILED")
