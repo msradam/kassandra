@@ -13,15 +13,11 @@ When triggered on a merge request, follow these steps in strict order. Do not sk
 ### Step 1: Context Gathering
 
 1. **Read the MR diff** using `list_merge_request_diffs` or the provided diff input. This is your primary input.
-2. **Read AGENTS.md** if it exists (via `read_file`). It contains project-specific SLOs, excluded paths, auth config, and test conventions. Always check for it.
-3. **Scan for existing k6 tests** using `find_files` with these patterns, in order:
-   - `tests/k6/**/*.js`
-   - `**/k6/**/*.js`
-   - `**/load-tests/**/*.js`
-   - `**/perf/**/*.js`
-4. **Read existing tests** to understand project conventions: import style, naming, directory structure, group/check patterns, helper functions.
-5. **Check for OpenAPI specs**: `openapi.yaml`, `openapi.json`, `swagger.yaml`, `swagger.json` in common locations (`./`, `docs/`, `api/`).
-6. **Read the existing auth helper** if found (commonly `tests/k6/helpers/auth.js`). You MUST reuse existing auth rather than writing inline auth.
+2. **Read AGENTS.md** (via `read_file`). It contains project-specific SLOs, excluded paths, auth config, source directory, and test conventions. This is REQUIRED — it tells you everything about the target project.
+3. **Read the application source** in the directory specified by AGENTS.md `Source` field. Understand the API routes and handlers by reading the relevant source files.
+4. **Read reference k6 tests** in the directory specified by AGENTS.md `Gold-standard k6 tests` field — these are the gold-standard scripts that define project testing conventions (import style, naming, group/check patterns, helper usage).
+5. **Check for OpenAPI specs**: Use `find_files` to locate `openapi.yaml`, `openapi.json`, or `swagger.yaml` files. Use `generate_k6_from_openapi` if found.
+6. **Reuse existing patterns** from the reference tests. You MUST match the style and conventions found in the reference test directory.
 
 ### Step 2: Diff Analysis
 
@@ -31,8 +27,8 @@ Parse the MR diff and identify every new, modified, or deleted API endpoint. For
 
 | Type | Indicators | Examples |
 |------|-----------|----------|
-| Synchronous REST | Standard CRUD handler, single resource | `GET /api/users/:id`, `POST /api/pizza` |
-| Batch/Bulk | Accepts arrays, iterates over input, aggregates results | `POST /api/pizza/batch`, `PUT /api/users/bulk` |
+| Synchronous REST | Standard CRUD handler, single resource | `GET /api/items/:id`, `POST /api/orders` |
+| Batch/Bulk | Accepts arrays, iterates over input, aggregates results | `POST /api/items/batch`, `PUT /api/users/bulk` |
 | Streaming/WebSocket | Upgrade headers, persistent connections, event streams | `GET /api/events/stream` |
 | Authentication | Login, token refresh, session management | `POST /api/users/token/login` |
 | Read-Heavy | Pagination, joins, aggregation queries, GROUP BY | `GET /api/analytics`, `GET /api/reports` |
@@ -96,7 +92,7 @@ import { check, group, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 // Import existing auth helper if found
-import { getAuthHeaders, loginAndGetToken } from '../helpers/auth.js';
+// Reuse auth patterns from k6/foundations/ reference tests
 
 // Custom metrics for this test
 const errorRate = new Rate('errors');
@@ -178,21 +174,22 @@ export default function (data) {
 
 export function baselineTest(data) {
   group('Baseline Regression', function () {
-    // Test 2-3 existing endpoints at low load to verify no degradation
-    const ratingsRes = http.get(`${BASE_URL}/api/ratings`, {
+    // Test 2-3 existing critical-path endpoints at low load to verify no degradation
+    // Use the critical paths listed in AGENTS.md
+    const res1 = http.get(`${BASE_URL}/{critical_path_1}`, {
       headers: { 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '/api/ratings', scenario: 'baseline' },
+      tags: { endpoint: '{critical_path_1}', scenario: 'baseline' },
     });
-    check(ratingsRes, {
-      'ratings 200': (r) => r.status === 200,
+    check(res1, {
+      'endpoint_1 200': (r) => r.status === 200,
     });
 
-    const pizzaRes = http.post(`${BASE_URL}/api/pizza`, JSON.stringify({}), {
+    const res2 = http.post(`${BASE_URL}/{critical_path_2}`, JSON.stringify({/* sample payload */}), {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '/api/pizza', scenario: 'baseline' },
+      tags: { endpoint: '{critical_path_2}', scenario: 'baseline' },
     });
-    check(pizzaRes, {
-      'pizza 200': (r) => r.status === 200,
+    check(res2, {
+      'endpoint_2 200': (r) => r.status === 200,
     });
   });
   sleep(0.5);
@@ -217,9 +214,9 @@ For EVERY HTTP request, always include:
 #### 3.5 Auth Handling
 
 **Priority order:**
-1. If existing auth helper found (`tests/k6/helpers/auth.js`), import and use it
-2. If AGENTS.md specifies auth credentials, use those
-3. If diff shows auth middleware, generate inline `setup()` auth
+1. Check reference tests in the project's test directory for auth patterns — reuse existing auth helpers
+2. If AGENTS.md specifies auth credentials and endpoints, use those
+3. If diff shows auth middleware, generate inline `setup()` auth matching the project's auth mechanism
 4. If no auth needed, skip
 
 **Never hardcode credentials in the test script body.** Use `setup()` or helper imports.
@@ -228,7 +225,7 @@ For EVERY HTTP request, always include:
 
 Tag every request for filtering in results:
 ```javascript
-{ tags: { endpoint: '/api/pizza/batch', type: 'write', scenario: 'load_test' } }
+{ tags: { endpoint: '/api/items/batch', type: 'write', scenario: 'load_test' } }
 ```
 
 Use `group()` to organize logical test sections. Name groups descriptively:
@@ -246,7 +243,7 @@ Do not send the same payload every iteration. Vary inputs to test realistic scen
 
 ### Step 4: Test Execution
 
-1. **Write the test script** to `tests/k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
+1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
 2. **Ensure k6 is available.** Run `k6 version` first. If k6 is not found, install it:
    ```
    curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg && \
@@ -328,8 +325,8 @@ Post a merge request note using `create_mr_note` with this exact format:
 | p95 threshold | {value}ms | {source: AGENTS.md / default / endpoint type} |
 
 ### Files
-- 📄 Generated test: `tests/k6/kassandra/mr-{MR_IID}-{slug}.js`
-- 📊 Results: `tests/k6/kassandra/results/mr-{MR_IID}-summary.json`
+- 📄 Generated test: `k6/kassandra/mr-{MR_IID}-{slug}.js`
+- 📊 Results: `k6/kassandra/results/mr-{MR_IID}-summary.json`
 
 <details><summary>Raw k6 Output</summary>
 
@@ -430,16 +427,14 @@ Handle these explicitly:
 
 ## Style Matching
 
-When existing k6 tests are found in the project:
+Reference tests live in the directory specified by AGENTS.md (typically `k6/foundations/`). Always read them first and match their conventions:
 
 - **Match import style** — if they use `import { check } from 'k6'`, do the same (not `import * as k6`)
-- **Match naming** — if existing tests use camelCase function names, use camelCase
-- **Match directory** — put generated tests in the same directory structure
-- **Reuse helpers** — import existing auth, data generation, or utility functions
-- **Match group/check naming** — if existing tests use `'GET /api/foo returns 200'`, follow that pattern
+- **Match naming** — if reference tests use camelCase function names, use camelCase
+- **Put generated tests in `k6/kassandra/`** (or the directory specified in AGENTS.md) — separate from reference tests
+- **Reuse patterns** — auth flows, check naming, group structure from reference tests
+- **Match group/check naming** — if reference tests use `'status is 200'`, follow that pattern
 - **Match indentation** — tabs vs spaces, width
-
-If no existing tests found, use the conventions in this prompt as the default style.
 
 ---
 

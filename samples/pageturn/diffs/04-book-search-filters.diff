@@ -1,0 +1,71 @@
+diff --git a/pageturn/routes/books.py b/pageturn/routes/books.py
+index 1a2b3c4..5d6e7f8 100644
+--- a/pageturn/routes/books.py
++++ b/pageturn/routes/books.py
+@@ -1,5 +1,6 @@
+ import threading
+
++from datetime import datetime
+ from fastapi import APIRouter, Depends, HTTPException, Header, Query
+
+ from ..models import BatchImport, BatchResult, Book, BookCreate
+@@ -56,6 +57,8 @@ def list_books(
+     genre: str | None = Query(None, description="Filter by genre"),
+     min_price: float | None = Query(None, description="Minimum price filter"),
+     max_price: float | None = Query(None, description="Maximum price filter"),
++    year_from: int | None = Query(None, description="Filter books published from this year"),
++    year_to: int | None = Query(None, description="Filter books published up to this year"),
+     page: int = Query(1, ge=1),
+     per_page: int = Query(20, ge=1, le=100),
+ ):
+@@ -70,6 +73,10 @@ def list_books(
+         results = [b for b in results if b.price >= min_price]
+     if max_price is not None:
+         results = [b for b in results if b.price <= max_price]
++    if year_from is not None:
++        results = [b for b in results if b.year >= year_from]
++    if year_to is not None:
++        results = [b for b in results if b.year <= year_to]
+     start = (page - 1) * per_page
+     return results[start : start + per_page]
+
+@@ -89,3 +96,25 @@ def create_book(book: BookCreate, user: str = Depends(_get_current_user)):
+         _books[_next_id] = new_book
+         _next_id += 1
+     return new_book
++
++
++@router.get("/search/advanced", response_model=dict)
++def advanced_search(
++    q: str = Query(..., min_length=1, description="Search query"),
++    genre: str | None = Query(None),
++    sort_by: str = Query("relevance", description="Sort by: relevance, price, year, title"),
++    order: str = Query("asc", description="Sort order: asc or desc"),
++    user: str = Depends(_get_current_user),
++):
++    """Advanced search with sorting and relevance scoring."""
++    q_lower = q.lower()
++    results = []
++    for b in _books.values():
++        score = 0
++        if q_lower in b.title.lower():
++            score += 2
++        if q_lower in b.author.lower():
++            score += 1
++        if score > 0:
++            results.append({"book": b, "score": score})
++
++    if sort_by == "relevance":
++        results.sort(key=lambda x: x["score"], reverse=(order == "desc"))
++    elif sort_by == "price":
++        results.sort(key=lambda x: x["book"].price, reverse=(order == "desc"))
++    elif sort_by == "year":
++        results.sort(key=lambda x: x["book"].year, reverse=(order == "desc"))
++    elif sort_by == "title":
++        results.sort(key=lambda x: x["book"].title.lower(), reverse=(order == "desc"))
++
++    return {
++        "query": q,
++        "total": len(results),
++        "results": results,
++    }
