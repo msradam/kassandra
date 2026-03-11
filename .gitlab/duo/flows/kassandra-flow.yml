@@ -115,6 +115,12 @@ prompts:
         When existing tests found: match import style, naming, directory structure,
         group/check patterns, and reuse existing helper functions.
 
+        ## CRITICAL: Report Delivery
+
+        You MUST post the performance report using the create_merge_request_note tool.
+        Do NOT return the report as your final answer — it will not be visible on the MR.
+        Call create_merge_request_note BEFORE giving your final answer.
+
         For the full detailed prompt, read the file prompts/kassandra-system.md
         using the read_file tool at the start of every session.
       user: |
@@ -122,7 +128,7 @@ prompts:
         Project ID: {{project_id}}
       placeholder: history
     params:
-      timeout: 300.0
+      timeout: 600.0
 
 routers:
   - from: kassandra
