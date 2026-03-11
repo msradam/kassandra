@@ -9,12 +9,13 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .tools import TOOLS, ANTHROPIC_TOOLS, execute_tool
+from .tools import TOOLS, ANTHROPIC_TOOLS, execute_tool, set_mr_context
 
 
 def load_system_prompt() -> str:
@@ -25,7 +26,7 @@ def load_system_prompt() -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_sample(sample_name: str) -> str:
+def load_sample(sample_name: str) -> dict:
     samples_dir = Path(config.SAMPLES_DIR)
 
     context_file = None
@@ -49,25 +50,71 @@ def load_sample(sample_name: str) -> str:
     mr_context = json.loads(context_file.read_text())
     diff_content = diff_file.read_text() if diff_file else "(no diff available)"
 
-    user_message = f"""A merge request has been opened and needs performance testing.
+    return {
+        "iid": mr_context["iid"],
+        "title": mr_context["title"],
+        "description": mr_context.get("description", ""),
+        "source_branch": mr_context.get("source_branch", "feature-branch"),
+        "target_branch": mr_context.get("target_branch", "main"),
+        "author": mr_context.get("author", "developer"),
+        "diff": diff_content,
+    }
+
+
+def load_branch(branch: str) -> dict:
+    target = "main"
+    try:
+        diff = subprocess.run(
+            ["git", "diff", f"{target}...{branch}", "--"],
+            capture_output=True,
+            text=True,
+            cwd=config.REPO_ROOT,
+        )
+        if diff.returncode != 0:
+            print(f"Error: git diff failed: {diff.stderr}")
+            sys.exit(1)
+        diff_content = diff.stdout
+        if not diff_content.strip():
+            print(f"Error: No diff between {target} and {branch}")
+            sys.exit(1)
+    except FileNotFoundError:
+        print("Error: git not found")
+        sys.exit(1)
+
+    log = subprocess.run(
+        ["git", "log", f"{target}..{branch}", "--oneline", "-1"],
+        capture_output=True,
+        text=True,
+        cwd=config.REPO_ROOT,
+    )
+    title = log.stdout.strip().split(" ", 1)[-1] if log.stdout.strip() else branch
+
+    return {
+        "iid": 99,
+        "title": title,
+        "description": f"Branch {branch} changes for performance testing",
+        "source_branch": branch,
+        "target_branch": target,
+        "author": "developer",
+        "diff": diff_content,
+    }
+
+
+def build_user_message(mr: dict) -> str:
+    return f"""A merge request has been opened and needs performance testing.
 
 **Merge Request Details:**
-- IID: !{mr_context["iid"]}
-- Title: {mr_context["title"]}
-- Description: {mr_context["description"]}
-- Source Branch: {mr_context["source_branch"]}
-- Target Branch: {mr_context["target_branch"]}
+- IID: !{mr["iid"]}
+- Title: {mr["title"]}
+- Description: {mr["description"]}
+- Source Branch: {mr["source_branch"]}
+- Target Branch: {mr["target_branch"]}
 
 **Review Environment URL:** {config.REVIEW_ENV_URL}
 
-**MR Diff:**
-```diff
-{diff_content}
-```
+Please analyze this merge request, generate appropriate k6 performance tests, execute them, and post a performance report as an MR note.
 
-Please analyze this merge request, generate appropriate k6 performance tests, execute them, and post a performance report as an MR note."""
-
-    return user_message
+Note: Use the `list_merge_request_diffs` tool to retrieve the full diff. Use `get_merge_request` for MR metadata. Use `generate_k6_from_openapi` to get a base k6 skeleton from the OpenAPI spec. Use `validate_k6_script` after writing scripts to check for issues."""
 
 
 def call_openai(messages: list, verbose: bool = False) -> dict:
@@ -108,7 +155,7 @@ def call_anthropic(messages: list, system_prompt: str, verbose: bool = False) ->
         print("Error: anthropic package required. Run: uv pip install anthropic")
         sys.exit(1)
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(max_retries=5)
 
     anthropic_messages = []
     for msg in messages:
@@ -131,13 +178,34 @@ def call_anthropic(messages: list, system_prompt: str, verbose: bool = False) ->
             continue
         anthropic_messages.append(msg)
 
+    # Cache system prompt and tool definitions to avoid re-processing each round
+    cached_tools = [*ANTHROPIC_TOOLS]
+    cached_tools[-1] = {**cached_tools[-1], "cache_control": {"type": "ephemeral"}}
+
     response = client.messages.create(
         model=config.ANTHROPIC_MODEL,
         max_tokens=4096,
-        system=system_prompt,
-        tools=ANTHROPIC_TOOLS,
+        system=[
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        tools=cached_tools,
         messages=anthropic_messages,
     )
+
+    # Log token usage for cost visibility
+    usage = response.usage
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    cache_create = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    if verbose:
+        print(
+            f"  [TOKENS] in={usage.input_tokens} out={usage.output_tokens} "
+            f"cache_read={cache_read} cache_create={cache_create}"
+        )
+
     return response
 
 
@@ -190,8 +258,8 @@ def parse_tool_calls_from_text(text: str) -> list:
                 "find_files",
                 "grep",
                 "run_command",
-                "create_file",
-                "create_mr_note",
+                "create_file_with_contents",
+                "create_merge_request_note",
             }:
                 try:
                     args_str = match.group(2)
@@ -243,17 +311,20 @@ def build_openai_tool_results(tool_calls: list, results: list) -> list[dict]:
 
 
 def run_kassandra(
-    sample_name: str,
+    mr_context: dict,
     use_anthropic: bool = False,
     dry_run: bool = False,
     verbose: bool = False,
 ):
     system_prompt = load_system_prompt()
-    user_message = load_sample(sample_name)
+    set_mr_context(mr_context)
+    user_message = build_user_message(mr_context)
 
+    source = mr_context.get("source_branch", "unknown")
     print(f"\n{'=' * 60}")
     print("  Kassandra Simulator")
-    print(f"  Sample: {sample_name}")
+    print(f"  MR: !{mr_context['iid']} — {mr_context['title']}")
+    print(f"  Branch: {source}")
     print(f"  Backend: {'Anthropic' if use_anthropic else 'Local MLX'}")
     print(f"  Dry run: {dry_run}")
     print(f"{'=' * 60}\n")
@@ -277,7 +348,7 @@ def run_kassandra(
             print(text)
 
     log(f"Session started: {timestamp}")
-    log(f"Sample: {sample_name}")
+    log(f"MR: !{mr_context['iid']} — {mr_context['title']}")
     log(f"Backend: {'Anthropic' if use_anthropic else 'Local MLX'}")
 
     for round_num in range(1, config.MAX_TOOL_ROUNDS + 1):
@@ -344,6 +415,8 @@ def run_kassandra(
             results.append(result)
 
         if use_anthropic:
+            # Truncate tool results to limit context growth across rounds
+            max_result_chars = 8000
             messages.append(
                 {
                     "role": "user",
@@ -351,9 +424,13 @@ def run_kassandra(
                         {
                             "type": "tool_result",
                             "tool_use_id": tc["id"],
-                            "content": result,
+                            "content": (
+                                r
+                                if len(r) <= max_result_chars
+                                else r[:max_result_chars] + "\n... [truncated]"
+                            ),
                         }
-                        for tc, result in zip(tool_calls, results)
+                        for tc, r in zip(tool_calls, results)
                     ],
                 }
             )
@@ -371,10 +448,14 @@ def run_kassandra(
 
 def main():
     parser = argparse.ArgumentParser(description="Kassandra Simulator")
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
         "--sample",
-        default="01-add-batch-endpoint",
-        help="Sample name (without extension)",
+        help="Sample name from samples/ directory",
+    )
+    source.add_argument(
+        "--branch",
+        help="Local git branch to diff against main",
     )
     parser.add_argument(
         "--anthropic",
@@ -396,8 +477,13 @@ def main():
     if args.anthropic:
         os.environ["KASSANDRA_USE_ANTHROPIC"] = "1"
 
+    if args.sample:
+        mr_context = load_sample(args.sample)
+    else:
+        mr_context = load_branch(args.branch)
+
     run_kassandra(
-        sample_name=args.sample,
+        mr_context=mr_context,
         use_anthropic=args.anthropic,
         dry_run=args.dry_run,
         verbose=args.verbose,
