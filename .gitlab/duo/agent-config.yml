@@ -4,7 +4,7 @@ setup_script:
   - mv /tmp/k6-v0.56.0-linux-amd64/k6 /usr/local/bin/k6
   - chmod +x /usr/local/bin/k6
   - k6 version
-  - pip install fastapi uvicorn pyjwt 2>/dev/null
-  - cd demos/pageturn && python3 -m uvicorn pageturn.main:app --host 0.0.0.0 --port 8000 &
+  - /usr/local/bin/python3.12 -m pip install --quiet fastapi uvicorn pyjwt
+  - cd demos/pageturn && /usr/local/bin/python3.12 -m uvicorn pageturn.main:app --host 0.0.0.0 --port 8000 &
   - sleep 3
-  - curl -sf http://localhost:8000/api/health && echo "PageTurn is running" || echo "WARN PageTurn health check failed"
+  - curl -sf http://localhost:8000/api/health && echo "PageTurn running" || echo "WARN health check failed"
