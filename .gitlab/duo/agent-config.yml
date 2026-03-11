@@ -1,6 +1,6 @@
 setup_script:
-  - apt-get update -qq && apt-get install -y -qq curl gnupg2 >/dev/null 2>&1
-  - curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-  - echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" > /etc/apt/sources.list.d/k6.list
-  - apt-get update -qq && apt-get install -y -qq k6 >/dev/null 2>&1
+  - curl -fsSL https://github.com/grafana/k6/releases/download/v0.56.0/k6-v0.56.0-linux-amd64.tar.gz -o /tmp/k6.tar.gz
+  - tar -xzf /tmp/k6.tar.gz -C /tmp
+  - mv /tmp/k6-v0.56.0-linux-amd64/k6 /usr/local/bin/k6
+  - chmod +x /usr/local/bin/k6
   - k6 version
