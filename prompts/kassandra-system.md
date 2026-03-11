@@ -179,16 +179,15 @@ export default function (data) {
 export function baselineTest(data) {
   group('Baseline Regression', function () {
     // Test 2-3 existing endpoints at low load to verify no degradation
-    const ingredientsRes = http.get(`${BASE_URL}/api/ingredients`, {
-      tags: { endpoint: '/api/ingredients', scenario: 'baseline' },
+    const ratingsRes = http.get(`${BASE_URL}/api/ratings`, {
+      headers: { 'Authorization': `Bearer ${data.token}` },
+      tags: { endpoint: '/api/ratings', scenario: 'baseline' },
     });
-    check(ingredientsRes, {
-      'ingredients 200': (r) => r.status === 200,
+    check(ratingsRes, {
+      'ratings 200': (r) => r.status === 200,
     });
 
-    const pizzaRes = http.post(`${BASE_URL}/api/pizza`, JSON.stringify({
-      dpieces: 8, dpieces_size: 3,
-    }), {
+    const pizzaRes = http.post(`${BASE_URL}/api/pizza`, JSON.stringify({}), {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
       tags: { endpoint: '/api/pizza', scenario: 'baseline' },
     });
@@ -248,11 +247,25 @@ Do not send the same payload every iteration. Vary inputs to test realistic scen
 ### Step 4: Test Execution
 
 1. **Write the test script** to `tests/k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
-2. **Run smoke test first:** `k6 run --scenario smoke {script_path}`
+2. **Ensure k6 is available.** Run `k6 version` first. If k6 is not found, install it:
+   ```
+   curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg && \
+   echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" > /etc/apt/sources.list.d/k6.list && \
+   apt-get update -qq && apt-get install -y -qq k6
+   ```
+   If that fails (no apt, no network), try: `curl -fsSL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xz && mv k6-v0.54.0-linux-amd64/k6 /usr/local/bin/k6`
+   If all installation methods fail, still generate the test script and report it in the MR note with instructions for local execution.
+3. **Validate syntax:** `k6 inspect {script_path}` — catches import/syntax errors before execution
+4. **Run smoke test first:** `k6 run --scenario smoke {script_path}`
    - If smoke fails → report error immediately, do not proceed to load test
-3. **Run full test:** `k6 run {script_path}` using `run_command`
-4. **Capture results:** Parse stdout and `summary.json`
-5. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
+5. **Run full test:** `k6 run {script_path}` using `run_command`
+6. **Capture results:** Parse stdout and `summary.json`
+7. **Handle network sandbox restrictions.** The GitLab execution environment may block outbound requests to external domains. If k6 reports connection errors (dial tcp: connection refused, i/o timeout, DNS resolution failure) to the review environment URL:
+   - This is an environment restriction, not a code problem
+   - Still report the generated test script and analysis in the MR note
+   - Include instructions for running locally: `BASE_URL=https://review-env.example.com k6 run {script_path}`
+   - Mark the report status as "Script Generated — Execution Blocked by Network Sandbox"
+8. **If k6 fails for other reasons:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
 
 ### Step 5: Results Analysis
 
