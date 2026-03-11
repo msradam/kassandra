@@ -4,74 +4,98 @@ Automated performance testing agent for GitLab merge requests. Kassandra analyze
 
 Built on the [GitLab Duo Agent Platform](https://docs.gitlab.com/ee/development/duo_workflow/).
 
-## What it does
+## How it works
 
-When triggered on a merge request, Kassandra:
+Kassandra is **project-agnostic**. It reads each project's `AGENTS.md` for SLOs, auth config, critical paths, and test conventions — then adapts accordingly. When a merge request introduces or modifies API endpoints, the agent:
 
-1. **Reads the MR diff** and classifies changed API endpoints (REST CRUD, batch, auth, read-heavy, write-heavy)
-2. **Generates k6 scripts** with appropriate executors, thresholds, and load profiles based on endpoint type
-3. **Executes tests** — smoke test first, then full load test — against the review environment
-4. **Posts a performance report** as an MR note with latency percentiles, error rates, throughput, and pass/fail status
+1. **Reads the MR diff** and classifies changed endpoints (REST CRUD, batch, auth, read-heavy, write-heavy)
+2. **Reads AGENTS.md** for project-specific SLOs, auth credentials, and test conventions
+3. **Generates k6 scripts** with appropriate executors, thresholds, and load profiles based on endpoint type
+4. **Executes tests** against the review environment
+5. **Posts a performance report** as an MR note with latency percentiles, error rates, throughput, and pass/fail status
+
+## Demo applications
+
+Two demo apps prove Kassandra works across different stacks:
+
+| App | Stack | Port | Directory |
+|-----|-------|------|-----------|
+| **QuickPizza** | Go / Chi / SQLite | 3333 | `demos/quickpizza/` |
+| **PageTurn** | Python / FastAPI / in-memory | 8000 | `demos/pageturn/` |
+
+Each has its own `AGENTS.md`, reference k6 tests, and OpenAPI spec. Kassandra generates different test strategies for each based on their unique SLOs and auth mechanisms.
 
 ## Project structure
 
 ```
-agents/agent.yml              # Agent definition (GitLab Duo)
-flows/flow.yml                # Flow definition (GitLab Duo)
-prompts/kassandra-system.md   # Full system prompt
-AGENTS.md                     # Project SLOs and conventions
+agents/agent.yml                  # Agent definition (GitLab Duo)
+flows/flow.yml                    # Flow definition (GitLab Duo)
+prompts/kassandra-system.md       # Full system prompt
+.gitlab/duo/agent-config.yml      # Platform environment setup
 
-simulator/                    # Local testing harness
-  run.py                      # Agentic loop (OpenAI-compatible or Anthropic)
-  evaluate.py                 # Script quality evaluator
-  tools.py                    # Local tool implementations
-  config.py                   # Configuration
+simulator/                        # Local testing harness
+  run.py                          # Agentic loop (Anthropic API)
+  evaluate.py                     # Script quality + runtime evaluator
+  tools.py                        # Local tool implementations
+  config.py                       # Configuration
 
-samples/                      # Test fixtures
-  diffs/                      # Sample MR diffs
-  mr-contexts/                # Sample MR metadata
-  expected/                   # Gold-standard k6 scripts
+demos/
+  quickpizza/                     # Go demo app
+    AGENTS.md                     # QuickPizza-specific SLOs and config
+    app/                          # Go source
+    k6/                           # Reference tests + generated output
+  pageturn/                       # Python demo app
+    AGENTS.md                     # PageTurn-specific SLOs and config
+    pageturn/                     # FastAPI source
+    k6/                           # Reference tests + generated output
 
-tests/k6/                     # k6 test scripts
-  baseline-api.js             # Baseline performance test
-  helpers/auth.js             # Auth helper
+samples/
+  quickpizza/                     # Sample MR diffs and contexts
+  pageturn/
 ```
 
 ## Local simulator
 
-The simulator replicates the GitLab Duo agentic loop locally for development and testing.
+The simulator replicates the GitLab Duo agentic loop locally with the same tool interface.
 
 ```bash
-uv sync
+# Run against QuickPizza (default)
+ANTHROPIC_API_KEY=... python -m simulator.run --sample 01-batch-endpoint --anthropic
 
-# With a local OpenAI-compatible model server
-uv run python -m simulator.run --sample 01-add-batch-endpoint
+# Run against PageTurn
+KASSANDRA_PROJECT=pageturn ANTHROPIC_API_KEY=... python -m simulator.run --sample 04-book-search-filters --anthropic
 
-# With Anthropic API
-export ANTHROPIC_API_KEY=sk-...
-uv run python -m simulator.run --sample 01-add-batch-endpoint --anthropic
+# Dry run (generate scripts without executing k6)
+python -m simulator.run --sample 01-batch-endpoint --anthropic --dry-run
 
-# Dry run (generates scripts without executing k6)
-uv run python -m simulator.run --sample 01-add-batch-endpoint --dry-run
+# From a real git branch
+python -m simulator.run --branch feature/add-favorites --anthropic
 ```
 
 ## Evaluator
 
-Score generated k6 scripts against gold-standard expected outputs:
+Score generated k6 scripts and runtime results:
 
 ```bash
-uv run python -m simulator.evaluate tests/k6/kassandra/mr-42-test.js samples/expected/01-batch-endpoint.js
+# Full session evaluation (static analysis + runtime SLO checks)
+python -m simulator.evaluate --session
 
-# Check all expected scripts
-uv run python -m simulator.evaluate --check-all
+# Evaluate a single script
+python -m simulator.evaluate generated-test.js
+
+# Check all reference scripts
+python -m simulator.evaluate --check-all
 ```
 
 ## Configuration
 
 | Variable | Default | Description |
 |---|---|---|
-| `KASSANDRA_USE_ANTHROPIC` | `0` | Use Anthropic API (`1`) or local model (`0`) |
-| `KASSANDRA_LOCAL_URL` | `http://localhost:8080/v1` | Local model server URL |
-| `KASSANDRA_LOCAL_MODEL` | `default` | Local model name |
-| `KASSANDRA_ANTHROPIC_MODEL` | `claude-sonnet-4-5-20250514` | Anthropic model |
-| `KASSANDRA_REVIEW_URL` | `https://quickpizza.grafana.com` | Review environment URL |
+| `KASSANDRA_PROJECT` | `quickpizza` | Target demo app (`quickpizza` or `pageturn`) |
+| `KASSANDRA_ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | Anthropic model |
+| `KASSANDRA_REVIEW_URL` | per-project | Review environment URL |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key |
+
+## License
+
+Kassandra is MIT licensed. QuickPizza (in `demos/quickpizza/`) is Apache 2.0 licensed by Grafana Labs — see [demos/quickpizza/LICENSE](demos/quickpizza/LICENSE).

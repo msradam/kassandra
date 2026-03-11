@@ -1,0 +1,8 @@
+{
+    "iid": 87,
+    "title": "Add advanced search and year filters to book catalog",
+    "description": "Adds year_from/year_to query parameters to GET /api/books and a new GET /api/books/search/advanced endpoint with full-text search, sorting, and relevance scoring. Requires auth for advanced search.",
+    "source_branch": "feature/book-search-filters",
+    "target_branch": "main",
+    "author": "developer"
+}
