@@ -1,40 +1,25 @@
 # Project Configuration for AI Agents
 
-## General
-- Language: Go
-- Framework: Chi router
-- Database: PostgreSQL (via pgx)
-- Test framework: k6 (JavaScript/ES modules)
+## Kassandra
 
-## Performance Testing (Kassandra)
+Kassandra is a project-agnostic performance testing agent. Each demo application
+under `demos/` has its own `AGENTS.md` with project-specific SLOs, auth config,
+critical paths, and test conventions.
 
-### SLOs
-- Default: p95 < 2000ms, error rate < 0.5%
-- Auth endpoints: p95 < 1000ms
-- Batch endpoints: p95 < 5000ms
+### Demo Applications
 
-### Load Profiles
-- Review environment: max 50 VUs, 2-3 min duration
-- Always compare against target branch (relative, not absolute)
+| App | Stack | Directory | AGENTS.md |
+|-----|-------|-----------|-----------|
+| QuickPizza | Go / Chi / SQLite | `demos/quickpizza/` | `demos/quickpizza/AGENTS.md` |
+| PageTurn | Python / FastAPI / in-memory | `demos/pageturn/` | `demos/pageturn/AGENTS.md` |
 
-### Critical Paths
-- /api/users/token/login
-- /api/pizza
-- /api/ratings
+### How It Works
 
-### Excluded Paths
-- /api/status/*
-- /metrics
-- /debug/*
+When triggered on a merge request, Kassandra:
+1. Reads the project's `AGENTS.md` for SLOs and conventions
+2. Reads the MR diff to classify changed endpoints
+3. Reads reference k6 tests to match the project's style
+4. Generates, executes, and reports k6 performance tests
 
-### Review Environment
-- Pattern: https://quickpizza.grafana.com
-- Auth: username=default, password=1234
-
-### Test Conventions
-- Directory: tests/k6/
-- Naming: kebab-case (e.g., batch-recommendation-load.js)
-- Import auth from tests/k6/helpers/auth.js
-- Use groups for logical grouping
-- Include handleSummary() for JSON output
-- Tag requests with endpoint and scenario
+The agent adapts to any project — different stacks, different SLOs,
+different auth mechanisms — by reading the project config at runtime.
