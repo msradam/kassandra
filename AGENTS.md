@@ -8,8 +8,8 @@ critical paths, and test conventions.
 
 ### Active Demo Applications
 
-**RealWorld** (Node.js) — Express-Sequelize RealWorld Conduit app at **http://localhost:3000**
-**FastAPI Shop** (Python) — FastAPI e-commerce app at **http://localhost:8000**
+**Calliope Books** (Node.js) — Express bookshop API at **http://localhost:3000**
+**Midas Bank** (Python) — FastAPI banking API at **http://localhost:8000**
 
 Read the project-specific `AGENTS.md` for whichever app the MR targets.
 
@@ -17,9 +17,8 @@ Read the project-specific `AGENTS.md` for whichever app the MR targets.
 
 | App | Stack | Directory | AGENTS.md | URL |
 |-----|-------|-----------|-----------|-----|
-| RealWorld | Node.js / Express / Sequelize / SQLite | `demos/realworld/` | `demos/realworld/AGENTS.md` | http://localhost:3000 |
-| FastAPI Shop | Python / FastAPI / SQLAlchemy / SQLite | `demos/fastapi-shop/` | `demos/fastapi-shop/AGENTS.md` | http://localhost:8000 |
-| PageTurn | Python / FastAPI / in-memory | `demos/pageturn/` | `demos/pageturn/AGENTS.md` | http://localhost:8000 |
+| Calliope Books | Node.js / Express / better-sqlite3 | `demos/calliope-books/` | `demos/calliope-books/AGENTS.md` | http://localhost:3000 |
+| Midas Bank | Python / FastAPI / sqlite3 | `demos/midas-bank/` | `demos/midas-bank/AGENTS.md` | http://localhost:8000 |
 
 ### How It Works
 

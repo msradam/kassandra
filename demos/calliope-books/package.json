@@ -1,0 +1,14 @@
+{
+  "name": "calliope-books",
+  "version": "1.0.0",
+  "description": "A simple bookshop API",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^11.0.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
