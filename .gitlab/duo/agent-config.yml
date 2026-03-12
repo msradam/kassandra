@@ -6,14 +6,17 @@ setup_script:
   - chmod +x /usr/local/bin/k6
   - k6 version
 
+  # ── Build tools for native Node modules (better-sqlite3) ──
+  - apt-get update -qq && apt-get install -y -qq python3 make g++ > /dev/null 2>&1 || true
+
   # ── Calliope Books (Node.js, port 3000) ──
-  - cd demos/calliope-books && npm install 2>&1 | tail -5
+  - cd demos/calliope-books && npm install 2>&1 | tail -20
   - cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 &
   - sleep 2
   - curl -sf http://localhost:3000/api/health && echo "Calliope Books running on :3000" || (cat /tmp/calliope.log | tail -20 && echo "Calliope Books FAILED")
 
   # ── Midas Bank (Python, port 8000) ──
-  - pip install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -5 || pip install -r demos/midas-bank/requirements.txt 2>&1 | tail -5
+  - pip install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -10 || pip install -r demos/midas-bank/requirements.txt 2>&1 | tail -10
   - cd demos/midas-bank && nohup python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &
   - sleep 2
   - curl -sf http://localhost:8000/api/health && echo "Midas Bank running on :8000" || (cat /tmp/midas.log | tail -20 && echo "Midas Bank FAILED")
