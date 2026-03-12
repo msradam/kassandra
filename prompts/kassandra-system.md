@@ -448,26 +448,20 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
 
 ### Step 4: Test Execution
 
+**CRITICAL: The demo applications are already running.** The `setup_script` in `.gitlab/duo/agent-config.yml` starts all demo apps (and installs k6) before Kassandra is invoked. You MUST NOT attempt to start, restart, or manage the application processes. Doing so will cause hangs and timeouts.
+
+**Pre-execution checklist:**
+1. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this succeeds, the app is ready. If it fails, report the error in the MR note; do NOT try to start the app yourself.
+2. **Verify k6 is installed:** `k6 version` — k6 is pre-installed by setup_script. If somehow missing, report the error; do NOT spend time installing it.
+
+**Execution steps:**
 1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
-2. **Ensure k6 is available.** Run `k6 version` first. If k6 is not found, install it:
-   ```
-   curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg && \
-   echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" > /etc/apt/sources.list.d/k6.list && \
-   apt-get update -qq && apt-get install -y -qq k6
-   ```
-   If that fails (no apt, no network), try: `curl -fsSL https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz | tar xz && mv k6-v0.54.0-linux-amd64/k6 /usr/local/bin/k6`
-   If all installation methods fail, still generate the test script and report it in the MR note with instructions for local execution.
-3. **Validate syntax:** `k6 inspect {script_path}` — catches import/syntax errors before execution
-4. **Run smoke test first:** `k6 run --scenario smoke {script_path}`
+2. **Validate syntax:** `k6 inspect {script_path}` — catches import/syntax errors before execution
+3. **Run smoke test first:** `k6 run --scenario smoke {script_path}`
    - If smoke fails → report error immediately, do not proceed to load test
-5. **Run full test:** `k6 run {script_path}` using `run_command`
-6. **Capture results:** Parse stdout and `summary.json`
-7. **Handle network sandbox restrictions.** The GitLab execution environment may block outbound requests to external domains. If k6 reports connection errors (dial tcp: connection refused, i/o timeout, DNS resolution failure) to the review environment URL:
-   - This is an environment restriction, not a code problem
-   - Still report the generated test script and analysis in the MR note
-   - Include instructions for running locally: `BASE_URL=https://review-env.example.com k6 run {script_path}`
-   - Mark the report status as "Script Generated — Execution Blocked by Network Sandbox"
-8. **If k6 fails for other reasons:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
+4. **Run full test:** `k6 run {script_path}` using `run_command`
+5. **Capture results:** Parse stdout and `summary.json`
+6. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
 
 ### Step 5: Results Analysis
 
