@@ -1,5 +1,5 @@
 name: "Kassandra Performance Test"
-description: "Analyzes MR diffs, generates k6 performance tests, executes them, and reports results"
+description: "Analyzes MR code changes, generates k6 performance tests, executes them, and reports results"
 public: true
 definition:
   version: v1
