@@ -8,11 +8,8 @@ node_modules/
 .DS_Store
 
 simulator/output/
-demos/quickpizza/app/vendor/
-demos/quickpizza/app/bin/
-demos/quickpizza/k6/kassandra/
-demos/pageturn/k6/kassandra/
-demos/pageturn/.venv/
+demos/calliope-books/node_modules/
+demos/midas-bank/*.db
 
 key.yml
 summary.json

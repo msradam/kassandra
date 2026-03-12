@@ -1,9 +1,0 @@
-{
-  "iid": 42,
-  "title": "Add batch pizza recommendation endpoint",
-  "description": "Adds POST /api/pizza/batch for multiple recommendations in one call. Useful for party planning feature.\n\nCloses #38",
-  "source_branch": "feature/batch-recommendations",
-  "target_branch": "main",
-  "author": "developer",
-  "web_url": "https://contributors.gitlab.com/ai-hackathon/participants/msradam/-/merge_requests/42"
-}

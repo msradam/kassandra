@@ -16,22 +16,19 @@ OUTPUT_DIR = os.path.join(REPO_ROOT, "simulator", "output")
 MAX_TOOL_ROUNDS = 20
 K6_TIMEOUT = 300
 
-PROJECT = os.getenv("KASSANDRA_PROJECT", "quickpizza")
+PROJECT = os.getenv("KASSANDRA_PROJECT", "calliope-books")
 
 _PROJECT_DEFAULTS = {
-    "quickpizza": {
-        "review_url": "http://localhost:3333",
-        "project_dir": "demos/quickpizza",
-        "samples_dir": os.path.join(REPO_ROOT, "samples", "quickpizza"),
+    "calliope-books": {
+        "review_url": "http://localhost:3000",
+        "project_dir": "demos/calliope-books",
     },
-    "pageturn": {
+    "midas-bank": {
         "review_url": "http://localhost:8000",
-        "project_dir": "demos/pageturn",
-        "samples_dir": os.path.join(REPO_ROOT, "samples", "pageturn"),
+        "project_dir": "demos/midas-bank",
     },
 }
 
-_project_cfg = _PROJECT_DEFAULTS.get(PROJECT, _PROJECT_DEFAULTS["quickpizza"])
+_project_cfg = _PROJECT_DEFAULTS.get(PROJECT, _PROJECT_DEFAULTS["calliope-books"])
 REVIEW_ENV_URL = os.getenv("KASSANDRA_REVIEW_URL", _project_cfg["review_url"])
 PROJECT_DIR = os.getenv("KASSANDRA_PROJECT_DIR", _project_cfg["project_dir"])
-SAMPLES_DIR = os.getenv("KASSANDRA_SAMPLES_DIR", _project_cfg["samples_dir"])
