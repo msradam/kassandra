@@ -157,6 +157,30 @@ app.post('/api/auth/login', (req, res) => {
 
 // ── Books routes ──
 
+app.get('/api/books/trending', (req, res) => {
+  const { period = 'all', limit = 10 } = req.query;
+  let dateFilter = '';
+  if (period === 'week') dateFilter = "AND r.created_at >= datetime('now', '-7 days')";
+  else if (period === 'month') dateFilter = "AND r.created_at >= datetime('now', '-30 days')";
+  else if (period === 'year') dateFilter = "AND r.created_at >= datetime('now', '-365 days')";
+
+  const trending = all(`
+    SELECT b.*,
+           COUNT(r.id) as review_count,
+           ROUND(AVG(r.rating), 2) as avg_rating,
+           SUM(CASE WHEN r.rating >= 4 THEN 1 ELSE 0 END) as positive_reviews
+    FROM books b
+    JOIN reviews r ON r.book_id = b.id
+    WHERE 1=1 ${dateFilter}
+    GROUP BY b.id
+    HAVING review_count >= 1
+    ORDER BY avg_rating DESC, review_count DESC
+    LIMIT ?
+  `, [Number(limit)]);
+
+  res.json({ trending, period, count: trending.length });
+});
+
 app.get('/api/books', (req, res) => {
   const { genre, author, search, limit = 20, offset = 0 } = req.query;
   let sql = 'SELECT * FROM books WHERE 1=1';
