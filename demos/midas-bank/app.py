@@ -1,6 +1,10 @@
 import hashlib
-import sqlite3
 import time
+
+try:
+    import pysqlite3 as sqlite3
+except ImportError:
+    import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
