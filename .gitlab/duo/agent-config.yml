@@ -6,21 +6,14 @@ setup_script:
   - chmod +x /usr/local/bin/k6
   - k6 version
 
-  # ── Demo App 1: Express-Sequelize RealWorld (Node.js, port 3000) ──
-  - git clone --depth 1 https://github.com/cirosantilli/node-express-sequelize-realworld-example-app.git /tmp/realworld
-  - cd /tmp/realworld && npm install 2>&1 | tail -5
-  - cd /tmp/realworld && node ./bin/generate-demo-data.js --n-users 5 --n-articles-per-user 8 --n-follows-per-user 3 2>&1 || echo "Demo data generation skipped"
-  - cd /tmp/realworld && nohup node app.js > /tmp/realworld.log 2>&1 &
-  - sleep 3
-  - curl -sf http://localhost:3000/api/articles && echo "RealWorld running on :3000" || (cat /tmp/realworld.log | tail -20 && echo "RealWorld FAILED")
+  # ── Calliope Books (Node.js, port 3000) ──
+  - cd demos/calliope-books && npm install 2>&1 | tail -5
+  - cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 &
+  - sleep 2
+  - curl -sf http://localhost:3000/api/health && echo "Calliope Books running on :3000" || (cat /tmp/calliope.log | tail -20 && echo "Calliope Books FAILED")
 
-  # ── Demo App 2: FastAPI Shop (Python, port 8000) ──
-  - git clone --depth 1 https://github.com/zamaniamin/fastapi-shop.git /tmp/fastapi-shop
-  - cd /tmp/fastapi-shop && pip install --break-system-packages -r requirements.txt 2>&1 | tail -5 || pip install -r requirements.txt 2>&1 | tail -5
-  - cd /tmp/fastapi-shop && cp .env.template .env 2>/dev/null || true
-  - cd /tmp/fastapi-shop && sed -i 's|DATABASE_URL=.*|DATABASE_URL=sqlite:///./dev.db|g' .env 2>/dev/null || true
-  - cd /tmp/fastapi-shop && python3 -m alembic upgrade head 2>&1 | tail -5 || echo "Alembic migrations skipped"
-  - cd /tmp/fastapi-shop && python3 demo.py 2>&1 || echo "Demo data skipped"
-  - cd /tmp/fastapi-shop && nohup python3 -m uvicorn apps.main:app --host 0.0.0.0 --port 8000 > /tmp/fastapi-shop.log 2>&1 &
-  - sleep 3
-  - curl -sf http://localhost:8000/docs && echo "FastAPI Shop running on :8000" || (cat /tmp/fastapi-shop.log | tail -20 && echo "FastAPI Shop FAILED")
+  # ── Midas Bank (Python, port 8000) ──
+  - pip install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -5 || pip install -r demos/midas-bank/requirements.txt 2>&1 | tail -5
+  - cd demos/midas-bank && nohup python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &
+  - sleep 2
+  - curl -sf http://localhost:8000/api/health && echo "Midas Bank running on :8000" || (cat /tmp/midas.log | tail -20 && echo "Midas Bank FAILED")
