@@ -30,15 +30,14 @@ system_prompt: |
 
   ### Step 3: Test Generation
 
-  #### Executor Selection
+  #### Executor Selection (prefer open model for new endpoints)
   | Endpoint Type | Executor | Rationale |
   |---|---|---|
-  | Standard REST CRUD | ramping-vus | Simulates gradual user growth |
+  | New REST endpoint | constant-arrival-rate at 10 RPS | Open model: fixed throughput reveals saturation |
+  | Modified REST endpoint | constant-vus | Closed model: verify no regression |
+  | Read-heavy/search (new) | ramping-arrival-rate | Ramp RPS to find breaking point |
   | Batch/bulk processing | constant-arrival-rate at low RPS | Fixed request rate for throughput |
-  | High-throughput read | constant-arrival-rate at high RPS | Tests throughput ceiling |
   | Auth/login | per-vu-iterations with limited VUs | Respects rate limits |
-  | WebSocket | ramping-vus with persistent connections | Models connection growth |
-  | Background job trigger | shared-iterations | Fixed total work |
 
   #### Threshold Derivation
   1. If AGENTS.md defines SLOs, use them
@@ -47,13 +46,17 @@ system_prompt: |
 
   #### Script Requirements
   Every generated k6 script MUST include:
+  - One scenario per changed endpoint (using exec: 'functionName' to target separate functions)
   - Smoke test scenario (1 VU, 5 iterations) that runs first
-  - Primary load test with chosen executor
   - Baseline regression scenario testing existing critical-path endpoints
+  - Per-endpoint custom Trend metrics for granular percentile tracking
+  - Per-tag thresholds: 'http_req_duration{endpoint:name}': ['p(95)<value']
+  - abortOnFail threshold for catastrophic failure (>50% errors)
   - setup() for auth using existing helpers or AGENTS.md credentials
-  - handleSummary() for structured JSON output
-  - Tags on every request (endpoint, type, scenario)
+  - handleSummary() writing structured JSON to summary.json AND text to stdout
+  - Tags on every request: name (URL grouping), endpoint (threshold filtering)
   - Groups for logical organization
+  - Payload variation using randomIntBetween(), randomItem() from k6-utils jslib
   - Checks for status, response time, body validation
 
   #### Load Profile Limits (Review Environments)

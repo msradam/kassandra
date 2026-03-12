@@ -21,9 +21,43 @@ When triggered on a merge request, follow these steps in strict order. Do not sk
 
 ### Step 2: Diff Analysis
 
-Parse the MR diff and identify every new, modified, or deleted API endpoint. For each endpoint, determine:
+Parse the MR diff and extract a structured endpoint manifest. This manifest is your contract — every endpoint listed here becomes a primary test target in Step 3.
 
-**Endpoint Classification:**
+**2.1 Extract the Endpoint Manifest**
+
+Read the diff line by line. For every route definition added or modified, produce one entry. Write this manifest to a file at `k6/kassandra/mr-{MR_IID}-endpoints.json` using `create_file_with_contents` before proceeding to Step 3.
+
+Format:
+```json
+{
+  "changed_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/books/search/advanced",
+      "change_type": "new",
+      "classification": "read-heavy",
+      "auth_required": true,
+      "description": "Full-text search with sorting and relevance scoring"
+    },
+    {
+      "method": "GET",
+      "path": "/api/books",
+      "change_type": "modified",
+      "classification": "synchronous-rest",
+      "auth_required": false,
+      "description": "Added year_from/year_to query parameter filters"
+    }
+  ],
+  "skipped_endpoints": [
+    {
+      "path": "/api/status/health",
+      "reason": "excluded by AGENTS.md"
+    }
+  ]
+}
+```
+
+**2.2 Classification Reference**
 
 | Type | Indicators | Examples |
 |------|-----------|----------|
@@ -35,15 +69,20 @@ Parse the MR diff and identify every new, modified, or deleted API endpoint. For
 | Write-Heavy | Multiple DB writes, side effects, queue jobs | `POST /api/orders` with inventory update |
 | Health/Internal | Status checks, metrics, debug endpoints | `GET /api/status/*`, `GET /metrics` |
 
-**Skip these entirely:**
+**Skip these entirely** (put them in `skipped_endpoints` with a reason):
 - Health/status endpoints (`/status/*`, `/health`, `/ready`)
 - Metrics/debug endpoints (`/metrics`, `/debug/*`)
 - Static file serving
 - Any endpoint listed in AGENTS.md `Excluded Paths`
 
-**For each testable endpoint, note:**
-- HTTP method and path
-- Authentication requirements (middleware, decorators, guards in the diff)
+**2.3 Verification Gate**
+
+Before proceeding to Step 3, verify:
+1. Every route definition added or modified in the diff has a corresponding entry in `changed_endpoints`
+2. If `changed_endpoints` is empty but the diff contains code changes, re-read the diff — you may have missed indirect route changes (e.g., new query parameters on an existing route, modified handler logic)
+3. The manifest file has been written successfully
+
+**For each endpoint in the manifest, also note** (include in your analysis, not the JSON):
 - Request body schema (from handler code or validation logic)
 - Expected response structure
 - Database operations that might create concurrency issues (transactions, locks, bulk inserts)
@@ -51,19 +90,25 @@ Parse the MR diff and identify every new, modified, or deleted API endpoint. For
 
 ### Step 3: Test Generation
 
+Read the endpoint manifest you wrote in Step 2 (`k6/kassandra/mr-{MR_IID}-endpoints.json`). Every endpoint in `changed_endpoints` MUST have its own dedicated **scenario** with its own **exported function** via the `exec` property. The baseline regression scenario tests existing critical-path endpoints from AGENTS.md — these are separate from the changed endpoints.
+
+**Key principle:** One endpoint = one scenario = one exec function. This gives per-endpoint metrics, per-endpoint thresholds, and independent load profiles. Never lump multiple new endpoints into a single `default` function.
+
 #### 3.1 Executor Selection
 
-Choose the executor based on endpoint type. This is the most important decision — justify it.
+Choose the executor based on endpoint classification from the manifest. This is the most important decision — justify it.
 
 | Endpoint Type | Executor | Rationale |
 |---------------|----------|-----------|
-| Standard REST CRUD | `ramping-vus` | Simulates gradual user growth; VU count maps to concurrent users |
-| Batch/bulk processing | `constant-arrival-rate` at low RPS | Fixed request rate matters more than user count for throughput testing |
-| High-throughput read (analytics, search) | `constant-arrival-rate` at high RPS | Tests throughput ceiling under sustained load |
+| Standard REST CRUD (new) | `constant-arrival-rate` | Open model: maintains fixed RPS regardless of response time. Reveals queuing and saturation. Use `rate: 10, timeUnit: '1s'` as default. |
+| Standard REST CRUD (modified) | `constant-vus` | Closed model: verify the modification didn't degrade existing performance |
+| Batch/bulk processing | `constant-arrival-rate` at low RPS | Fixed request rate for throughput testing (rate: 2-5/s) |
+| High-throughput read (analytics, search) | `ramping-arrival-rate` | Ramp RPS to find the breaking point where latency degrades |
 | Authentication/login | `per-vu-iterations` with limited VUs | Must respect rate limits; test per-user auth flow |
 | WebSocket/streaming | `ramping-vus` with persistent connections | Models connection growth over time |
 | Background job trigger | `shared-iterations` | Fixed total work distributed across VUs |
-| Mixed (multiple endpoints) | `ramping-vus` | General-purpose; test relative performance |
+
+**Prefer `constant-arrival-rate` for new endpoints** — it's the strongest signal because it decouples load generation from server response time. A `constant-vus` test that "passes" might just mean the server is slow and VUs are waiting.
 
 #### 3.2 Threshold Derivation
 
@@ -78,9 +123,23 @@ Follow this priority order:
 3. **Always include:** `http_req_failed: ['rate<0.01']` (less than 1% errors)
 4. **Always explain** your threshold choices in the MR note's "Decisions Made" table.
 
+**Use per-tag thresholds** to set different SLOs per endpoint:
+```javascript
+thresholds: {
+  'http_req_duration{endpoint:advanced_search}': ['p(95)<500'],
+  'http_req_duration{endpoint:list_books}': ['p(95)<300'],
+  'http_req_failed{endpoint:advanced_search}': ['rate<0.05'],
+}
+```
+
+**Use `abortOnFail`** for catastrophic failures — if an endpoint is >50% errors, stop early:
+```javascript
+'http_req_failed': [{ threshold: 'rate<0.50', abortOnFail: true, delayAbortEval: '10s' }],
+```
+
 #### 3.3 Script Structure
 
-Every generated k6 script MUST follow this structure:
+Every generated k6 script MUST follow this structure. Note: each changed endpoint gets its OWN scenario and exec function.
 
 ```javascript
 // Generated by Kassandra — GitLab Performance Testing Agent
@@ -89,20 +148,32 @@ Every generated k6 script MUST follow this structure:
 
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
-import { Rate, Trend } from 'k6/metrics';
+import { Rate, Trend, Counter } from 'k6/metrics';
+import exec from 'k6/execution';
+// NOTE: jslib.k6.io may be blocked by network sandbox.
+// If so, inline the helpers instead of importing.
+// import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+// import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
+
+// Inline fallbacks for sandboxed environments:
+function randomIntBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
 
 // Import existing auth helper if found
 // Reuse auth patterns from k6/foundations/ reference tests
 
-// Custom metrics for this test
-const errorRate = new Rate('errors');
-const endpointDuration = new Trend('endpoint_duration');
+// ── Custom metrics (one Trend per endpoint for granular percentiles) ──
+const advancedSearchLatency = new Trend('advanced_search_latency');
+const listBooksLatency = new Trend('list_books_latency');
+const endpointErrors = new Rate('endpoint_errors');
+const totalRequests = new Counter('total_requests');
 
 const BASE_URL = __ENV.BASE_URL || '{REVIEW_ENV_URL}';
 
 export const options = {
   scenarios: {
-    // Smoke test — always runs first
+    // ── Smoke: validates all endpoints work before load ──
     smoke: {
       executor: 'per-vu-iterations',
       vus: 1,
@@ -110,95 +181,195 @@ export const options = {
       maxDuration: '30s',
       exec: 'smokeTest',
       startTime: '0s',
+      tags: { test_phase: 'smoke' },
     },
-    // Primary load test with chosen executor
-    load_test: {
-      executor: '{chosen_executor}',
-      // ... executor-specific config
-      exec: 'default',
-      startTime: '35s', // after smoke test
+
+    // ── Per-endpoint scenarios (one per changed endpoint) ──
+    load_advanced_search: {
+      executor: 'constant-arrival-rate',   // open model for new endpoint
+      rate: 10,
+      timeUnit: '1s',
+      duration: '1m',
+      preAllocatedVUs: 10,
+      maxVUs: 30,
+      exec: 'testAdvancedSearch',          // targets its own function
+      startTime: '35s',
+      tags: { endpoint: 'advanced_search', change_type: 'new' },
+      gracefulStop: '30s',
     },
-    // Baseline regression — existing endpoints haven't degraded
+    load_list_books: {
+      executor: 'constant-vus',            // closed model for modified endpoint
+      vus: 10,
+      duration: '1m',
+      exec: 'testListBooks',
+      startTime: '35s',
+      tags: { endpoint: 'list_books', change_type: 'modified' },
+      gracefulStop: '30s',
+    },
+
+    // ── Baseline regression ──
     baseline_regression: {
       executor: 'constant-vus',
       vus: 5,
       duration: '30s',
       exec: 'baselineTest',
-      startTime: '{after_load_test}',
+      startTime: '100s',
+      tags: { test_phase: 'baseline' },
+      gracefulStop: '30s',
     },
   },
+
   thresholds: {
-    // Derived from AGENTS.md SLOs or endpoint-type defaults
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<{threshold}'],
+    // ── Global thresholds ──
+    'http_req_failed': [
+      { threshold: 'rate<0.50', abortOnFail: true, delayAbortEval: '10s' }, // abort on catastrophic failure
+      'rate<0.01',  // overall SLO
+    ],
+
+    // ── Per-endpoint thresholds (using tag filters) ──
+    'http_req_duration{endpoint:advanced_search}': ['p(95)<2000'],
+    'http_req_duration{endpoint:list_books}': ['p(95)<1000'],
+    'http_req_failed{endpoint:advanced_search}': ['rate<0.05'],
+    'http_req_failed{endpoint:list_books}': ['rate<0.01'],
+
+    // ── Custom metric thresholds ──
+    'advanced_search_latency': ['p(95)<2000', 'p(99)<3000'],
+    'list_books_latency': ['p(95)<1000'],
+
+    // ── Baseline must not degrade ──
+    'http_req_duration{test_phase:baseline}': ['p(95)<2000'],
   },
 };
 
 export function setup() {
   // Authenticate and return shared test data
   const token = loginAndGetToken();
-  return { token: token };
+  return { token };
 }
 
+// ── Smoke: hit each endpoint once to verify it works ──
 export function smokeTest(data) {
-  // Single-user validation: does the endpoint work at all?
-  group('Smoke: {endpoint_description}', function () {
-    const res = http.post(`${BASE_URL}/{path}`, JSON.stringify({payload}), {
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '{path}', type: '{type}', scenario: 'smoke' },
+  group('Smoke: Advanced Search', function () {
+    const res = http.get(`${BASE_URL}/api/books/search/advanced?q=test`, {
+      headers: { Authorization: `Bearer ${data.token}` },
+      tags: { name: 'AdvancedSearch', endpoint: 'advanced_search' },
     });
     check(res, {
       'status is 200': (r) => r.status === 200,
-      'response time < 5s': (r) => r.timings.duration < 5000,
-      'valid JSON': (r) => { try { JSON.parse(r.body); return true; } catch { return false; } },
+      'valid JSON': (r) => { try { r.json(); return true; } catch { return false; } },
     });
   });
-}
 
-export default function (data) {
-  group('{endpoint_description}', function () {
-    const res = http.post(`${BASE_URL}/{path}`, JSON.stringify({payload}), {
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '{path}', type: '{type}', scenario: 'load_test' },
+  group('Smoke: List Books (year filter)', function () {
+    const res = http.get(`${BASE_URL}/api/books?year_from=2020&year_to=2024`, {
+      tags: { name: 'ListBooks', endpoint: 'list_books' },
     });
-    const success = check(res, {
+    check(res, {
       'status is 200': (r) => r.status === 200,
-      'response time < threshold': (r) => r.timings.duration < {threshold},
-      'valid JSON': (r) => { try { JSON.parse(r.body); return true; } catch { return false; } },
     });
-    errorRate.add(!success);
-    endpointDuration.add(res.timings.duration);
   });
-  sleep(1);
 }
 
-export function baselineTest(data) {
-  group('Baseline Regression', function () {
-    // Test 2-3 existing critical-path endpoints at low load to verify no degradation
-    // Use the critical paths listed in AGENTS.md
-    const res1 = http.get(`${BASE_URL}/{critical_path_1}`, {
-      headers: { 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '{critical_path_1}', scenario: 'baseline' },
-    });
-    check(res1, {
-      'endpoint_1 200': (r) => r.status === 200,
-    });
+// ── Load: Advanced Search (new endpoint, arrival-rate) ──
+export function testAdvancedSearch(data) {
+  // Vary search queries for realistic load
+  const queries = ['python', 'javascript', 'design', 'api', 'data'];
+  const q = queries[Math.floor(Math.random() * queries.length)];
+  const sortOptions = ['relevance', 'price', 'year', 'title'];
+  const sort = sortOptions[Math.floor(Math.random() * sortOptions.length)];
 
-    const res2 = http.post(`${BASE_URL}/{critical_path_2}`, JSON.stringify({/* sample payload */}), {
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-      tags: { endpoint: '{critical_path_2}', scenario: 'baseline' },
+  const res = http.get(
+    `${BASE_URL}/api/books/search/advanced?q=${q}&sort_by=${sort}`,
+    {
+      headers: { Authorization: `Bearer ${data.token}` },
+      tags: { name: 'AdvancedSearch', endpoint: 'advanced_search' },
+    }
+  );
+
+  const ok = check(res, {
+    'status is 200': (r) => r.status === 200,
+    'has results array': (r) => { try { return Array.isArray(r.json().results); } catch { return false; } },
+    'p95 < 2s': (r) => r.timings.duration < 2000,
+  });
+
+  advancedSearchLatency.add(res.timings.duration);
+  endpointErrors.add(!ok);
+  totalRequests.add(1);
+}
+
+// ── Load: List Books with year filters (modified endpoint) ──
+export function testListBooks(data) {
+  const yearFrom = randomIntBetween(1990, 2020);
+  const yearTo = randomIntBetween(yearFrom, 2025);
+
+  const res = http.get(
+    `${BASE_URL}/api/books?year_from=${yearFrom}&year_to=${yearTo}&page=1&per_page=20`,
+    {
+      tags: { name: 'ListBooks', endpoint: 'list_books' },
+    }
+  );
+
+  const ok = check(res, {
+    'status is 200': (r) => r.status === 200,
+    'returns array': (r) => { try { return Array.isArray(r.json()); } catch { return false; } },
+    'p95 < 1s': (r) => r.timings.duration < 1000,
+  });
+
+  listBooksLatency.add(res.timings.duration);
+  endpointErrors.add(!ok);
+  totalRequests.add(1);
+  sleep(randomIntBetween(1, 3));
+}
+
+// ── Baseline Regression ──
+export function baselineTest(data) {
+  group('Baseline: Critical Paths', function () {
+    const res1 = http.get(`${BASE_URL}/{critical_path_1}`, {
+      headers: { Authorization: `Bearer ${data.token}` },
+      tags: { name: 'BaselinePath1', endpoint: '{critical_path_1}', test_phase: 'baseline' },
     });
-    check(res2, {
-      'endpoint_2 200': (r) => r.status === 200,
+    check(res1, { 'baseline_1 status 200': (r) => r.status === 200 });
+
+    const res2 = http.get(`${BASE_URL}/{critical_path_2}`, {
+      tags: { name: 'BaselinePath2', endpoint: '{critical_path_2}', test_phase: 'baseline' },
     });
+    check(res2, { 'baseline_2 status 200': (r) => r.status === 200 });
   });
   sleep(0.5);
 }
 
+// ── Structured output: JSON for Kassandra to parse, text for humans ──
 export function handleSummary(data) {
+  // Extract key metrics for Kassandra's analysis
+  const report = {
+    timestamp: new Date().toISOString(),
+    thresholds: {},
+    metrics: {},
+    checks: {},
+  };
+
+  // Capture threshold pass/fail status
+  if (data.metrics) {
+    for (const [name, metric] of Object.entries(data.metrics)) {
+      if (metric.thresholds) {
+        report.thresholds[name] = {};
+        for (const [thresh, passed] of Object.entries(metric.thresholds)) {
+          report.thresholds[name][thresh] = passed;
+        }
+      }
+      if (metric.values) {
+        report.metrics[name] = metric.values;
+      }
+    }
+  }
+
   return {
-    stdout: JSON.stringify(data, null, 2),
-    'summary.json': JSON.stringify(data),
+    // If textSummary is available (jslib loaded), use it for human-readable stdout.
+    // Otherwise, output the structured JSON to stdout too.
+    stdout: typeof textSummary === 'function'
+      ? textSummary(data, { indent: ' ', enableColors: false })
+      : JSON.stringify(report, null, 2),
+    'summary.json': JSON.stringify(report, null, 2),
   };
 }
 ```
@@ -209,7 +380,8 @@ For EVERY HTTP request, always include:
 - Status code check (expected status)
 - Response time check (against threshold)
 - Response body validation (valid JSON, expected fields if known)
-- Track errors via custom `errorRate` metric
+- Track errors via custom `endpointErrors` Rate metric
+- Track latency via per-endpoint Trend metric
 
 #### 3.5 Auth Handling
 
@@ -221,25 +393,58 @@ For EVERY HTTP request, always include:
 
 **Never hardcode credentials in the test script body.** Use `setup()` or helper imports.
 
-#### 3.6 Tags and Groups
+#### 3.6 Tags, Groups, and URL Grouping
 
-Tag every request for filtering in results:
+**Tag every request** with both `name` and `endpoint` tags:
 ```javascript
-{ tags: { endpoint: '/api/items/batch', type: 'write', scenario: 'load_test' } }
+{
+  tags: {
+    name: 'GetUserById',           // URL grouping — prevents metric explosion from dynamic URLs
+    endpoint: 'get_user',          // for per-endpoint threshold filtering
+  }
+}
+```
+
+**URL grouping is critical for parameterized paths** — without `name` tags, each unique URL (e.g., `/users/1`, `/users/2`) creates a separate metric entry. Always use either:
+```javascript
+// Option 1: name tag
+http.get(`${BASE_URL}/users/${id}`, { tags: { name: 'GetUserById' } });
+
+// Option 2: http.url template literal (automatic grouping)
+http.get(http.url`${BASE_URL}/users/${id}`);
 ```
 
 Use `group()` to organize logical test sections. Name groups descriptively:
-- `"Batch Recommendation — varied payload sizes"`
-- `"Baseline Regression"`
+- `"Smoke: Advanced Search"`
+- `"Baseline: Critical Paths"`
 - `"Auth Token Acquisition"`
 
-#### 3.7 Payload Variation
+#### 3.7 Payload Variation and Test Data
 
 Do not send the same payload every iteration. Vary inputs to test realistic scenarios:
-- Different array sizes for batch endpoints (1, 10, 50 items)
 - Different query parameters for search endpoints
-- Use `SharedArray` or inline arrays for test data
-- Randomize where appropriate using `Math.random()` or k6's `randomItem`
+- Use `randomIntBetween()` and `randomItem()` from k6-utils jslib
+- Different array sizes for batch endpoints (1, 10, 50 items)
+- Use `SharedArray` for large datasets loaded from files:
+
+```javascript
+import { SharedArray } from 'k6/data';
+const testUsers = new SharedArray('users', function () {
+  return JSON.parse(open('./test-data.json'));
+});
+// Access: testUsers[exec.vu.idInTest % testUsers.length]
+```
+
+Use `exec.vu.idInTest` and `exec.scenario.iterationInTest` for deterministic data selection when needed.
+
+#### 3.8 Scenario Timing
+
+Scenarios run concurrently by default. Use `startTime` to sequence phases:
+1. **Smoke** at `0s` — validate endpoints work
+2. **Load scenarios** at `35s` — all changed-endpoint scenarios can run concurrently (they have independent VU pools)
+3. **Baseline regression** after load — verify no resource contention spillover
+
+Changed-endpoint scenarios SHOULD run concurrently when possible — this tests realistic concurrent access patterns and reveals resource contention between endpoints.
 
 ### Step 4: Test Execution
 
@@ -268,15 +473,31 @@ Do not send the same payload every iteration. Vary inputs to test realistic scen
 
 After k6 completes:
 
-1. **Parse structured output** from `handleSummary()` JSON
-2. **Extract key metrics:** p50, p95, p99 latency, error rate, requests/sec, VU count
-3. **Compare against thresholds:** Did any threshold breach? Which ones?
-4. **Analyze patterns:**
-   - Did latency increase with VU count? (capacity issue)
-   - Did errors cluster at specific times? (timeout/connection issue)
-   - Did baseline endpoints degrade? (resource contention)
-5. **Compare to baseline:** If previous results exist, compute deltas
-6. **Write plain-English observations** — not just numbers
+1. **Read `summary.json`** written by `handleSummary()` using `read_file`. This gives you structured access to all metrics and threshold results.
+
+2. **Extract per-endpoint metrics** from the tagged data:
+   - `metrics['http_req_duration{endpoint:advanced_search}'].values` → `{ avg, min, max, med, 'p(90)', 'p(95)', 'p(99)' }`
+   - `metrics['http_req_failed{endpoint:advanced_search}'].values` → `{ rate, passes, fails }`
+   - Custom Trends: `metrics['advanced_search_latency'].values` → same percentile breakdown
+   - `metrics['http_reqs'].values` → `{ count, rate }` (total requests and RPS)
+
+3. **Check threshold results** in `thresholds` object:
+   - Each entry shows `{ "threshold_expression": true/false }`
+   - Any `false` = threshold breach → flag in report
+
+4. **Analyze patterns across endpoints:**
+   - Compare p95 between new endpoints and baseline — large gap suggests new code is slower
+   - Check `dropped_iterations` (arrival-rate only) — if >0, the server couldn't keep up with target RPS
+   - Compare error rates between smoke vs load — errors only under load suggest concurrency issues
+   - Check if baseline endpoints degraded during load — indicates resource contention from new code
+   - Look for high p99/p95 ratio — suggests tail latency outliers (GC pauses, lock contention)
+
+5. **Arrival-rate specific analysis** (this is unique insight k6 provides):
+   - If `dropped_iterations > 0`: "Target RPS of {rate}/s could not be sustained — the endpoint dropped {N} iterations. This suggests the endpoint cannot handle the target throughput."
+   - If `maxVUs` was reached: "k6 allocated all {maxVUs} VUs to maintain {rate} RPS. High VU count relative to RPS indicates slow response times causing VU queuing."
+
+6. **Write plain-English observations** — not just numbers. Relate metrics to code:
+   - "The advanced search endpoint's p95 of 450ms with 10 RPS suggests the full-text search query is efficient, but the p99 spike to 1200ms indicates occasional slow queries — possibly when the search term matches many results."
 
 ### Step 6: MR Report
 
@@ -288,24 +509,26 @@ Post a merge request note using `create_mr_note` with this exact format:
 **MR:** !{MR_IID} | **Branch:** `{BRANCH}` → `{TARGET_BRANCH}`
 **Environment:** `{REVIEW_ENV_URL}` | **Generated:** {TIMESTAMP}
 
-### Summary
+### Per-Endpoint Results
 
-| Metric | Value | Threshold | Status |
-|--------|-------|-----------|--------|
-| p95 Latency | {value}ms | < {threshold}ms | ✅/❌ |
-| p99 Latency | {value}ms | < {threshold}ms | ✅/❌ |
-| Error Rate | {value}% | < {threshold}% | ✅/❌ |
-| Requests/sec | {value} | — | ℹ️ |
+| Endpoint | Change | Executor | p95 | p99 | Error Rate | RPS | Threshold | Status |
+|----------|--------|----------|-----|-----|------------|-----|-----------|--------|
+| `GET /api/books/search/advanced` | new | `constant-arrival-rate` @ 10/s | {p95}ms | {p99}ms | {rate}% | {rps} | p95<2000ms | ✅/❌ |
+| `GET /api/books?year_from=..` | modified | `constant-vus` × 10 | {p95}ms | {p99}ms | {rate}% | {rps} | p95<1000ms | ✅/❌ |
 
-### What I Tested
+### Throughput Analysis
 
-**New/Changed Endpoints:**
-- `{METHOD} {PATH}` — {description} (added/modified in this MR)
-  - Executor: `{executor}`
-  - Rationale: {why this executor}
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Total Requests | {count} | — |
+| Dropped Iterations | {count} | {0 = target RPS sustained / >0 = endpoint can't keep up} |
+| Peak VU Allocation | {count} | {relative to preAllocatedVUs and maxVUs} |
 
-**Baseline Regression:**
-- `{METHOD} {PATH}` — {status} (p95: {before}ms → {after}ms, {delta}%)
+### Baseline Regression
+
+| Endpoint | p95 | Error Rate | Status |
+|----------|-----|------------|--------|
+| `{METHOD} {PATH}` | {value}ms | {rate}% | ✅ No degradation / ⚠️ Degraded |
 
 ### Observations
 
@@ -357,20 +580,30 @@ Review environments are resource-constrained (typically 1 CPU, 256MB–1GB RAM).
 { executor: 'per-vu-iterations', vus: 1, iterations: 5, maxDuration: '30s' }
 ```
 
-### Standard Load Test
+### New Endpoint — Throughput Validation (preferred for new endpoints)
 ```javascript
-{ executor: 'ramping-vus', stages: [
-  { duration: '30s', target: 10 },
-  { duration: '1m', target: 50 },
-  { duration: '30s', target: 0 },
-], gracefulStop: '30s' }
+{ executor: 'constant-arrival-rate', rate: 10, timeUnit: '1s', duration: '1m',
+  preAllocatedVUs: 10, maxVUs: 30, gracefulStop: '30s' }
 ```
+Use this for new endpoints. It maintains a fixed 10 RPS regardless of response time, proving the endpoint can handle sustained throughput. Watch `dropped_iterations` — if >0, the endpoint can't keep up.
 
-### Throughput Test
+### New Endpoint — Breaking Point Discovery
 ```javascript
-{ executor: 'constant-arrival-rate', rate: 10, timeUnit: '1s', duration: '2m',
-  preAllocatedVUs: 20, maxVUs: 50, gracefulStop: '30s' }
+{ executor: 'ramping-arrival-rate', startRate: 1, timeUnit: '1s',
+  stages: [
+    { duration: '30s', target: 20 },   // ramp to 20 RPS
+    { duration: '30s', target: 20 },   // hold at 20 RPS
+    { duration: '30s', target: 0 },    // ramp down
+  ],
+  preAllocatedVUs: 10, maxVUs: 50, gracefulStop: '30s' }
 ```
+Use this for read-heavy/search endpoints to find where latency degrades. The ramp reveals the throughput ceiling.
+
+### Modified Endpoint — Regression Check
+```javascript
+{ executor: 'constant-vus', vus: 10, duration: '1m', gracefulStop: '30s' }
+```
+Use this for endpoints that already exist but were modified. Simpler closed model — verify the change didn't break anything.
 
 ### Per-User Test (auth, rate-limited)
 ```javascript
@@ -378,9 +611,11 @@ Review environments are resource-constrained (typically 1 CPU, 256MB–1GB RAM).
 ```
 
 ### Hard Limits
-- **Duration cap:** 3 minutes per scenario
-- **VU cap:** 100 max (50 for review envs)
-- **Always include `gracefulStop`**
+- **Duration cap:** 2 minutes per scenario (runner time is precious)
+- **VU cap:** 50 max (review envs are resource-constrained)
+- **RPS cap:** 20/s max for arrival-rate executors
+- **Always include `gracefulStop: '30s'`**
+- **Always include `abortOnFail` threshold** for catastrophic failure (>50% errors)
 
 ---
 
