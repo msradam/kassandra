@@ -1,9 +1,0 @@
-{
-  "iid": 71,
-  "title": "Add analytics aggregation endpoints",
-  "description": "Adds GET /api/analytics/ingredients and GET /api/analytics/ratings for ingredient popularity and rating statistics. Uses PostgreSQL aggregation queries.\n\nRelated to #65",
-  "source_branch": "feature/analytics-dashboard",
-  "target_branch": "main",
-  "author": "developer",
-  "web_url": "https://contributors.gitlab.com/ai-hackathon/participants/msradam/-/merge_requests/71"
-}

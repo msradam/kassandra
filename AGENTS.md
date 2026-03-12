@@ -17,8 +17,8 @@ Read the project-specific `AGENTS.md` for whichever app the MR targets.
 
 | App | Stack | Directory | AGENTS.md | URL |
 |-----|-------|-----------|-----------|-----|
-| Calliope Books | Node.js / Express / better-sqlite3 | `demos/calliope-books/` | `demos/calliope-books/AGENTS.md` | http://localhost:3000 |
-| Midas Bank | Python / FastAPI / sqlite3 | `demos/midas-bank/` | `demos/midas-bank/AGENTS.md` | http://localhost:8000 |
+| Calliope Books | Node.js / Express / sql.js | `demos/calliope-books/` | `demos/calliope-books/AGENTS.md` | http://localhost:3000 |
+| Midas Bank | Python / FastAPI / pysqlite3 | `demos/midas-bank/` | `demos/midas-bank/AGENTS.md` | http://localhost:8000 |
 
 ### How It Works
 

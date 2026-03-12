@@ -1,9 +1,0 @@
-{
-  "iid": 55,
-  "title": "Add token refresh and rate limiting to auth",
-  "description": "Adds POST /api/users/token/refresh for token renewal. Implements IP-based rate limiting on login and refresh endpoints to prevent brute-force attacks.\n\nCloses #51",
-  "source_branch": "feature/auth-rate-limiting",
-  "target_branch": "main",
-  "author": "developer",
-  "web_url": "https://contributors.gitlab.com/ai-hackathon/participants/msradam/-/merge_requests/55"
-}

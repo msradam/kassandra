@@ -21,8 +21,8 @@
 name: kassandra
 description: >
   Performance testing agent that analyzes merge request diffs, generates
-  intelligent k6 load test scripts, executes them against review environments,
-  and posts detailed performance reports back to the merge request.
+  k6 load test scripts, executes them, and posts performance reports.
+  Demo apps and k6 are pre-started by setup_script — do not manage them.
 system_prompt_file: prompts/kassandra-system.md
 tools:
   - read_file
