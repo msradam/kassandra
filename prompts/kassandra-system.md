@@ -448,11 +448,15 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
 
 ### Step 4: Test Execution
 
-**CRITICAL: The demo applications are already running.** The `setup_script` in `.gitlab/duo/agent-config.yml` starts all demo apps (and installs k6) before Kassandra is invoked. You MUST NOT attempt to start, restart, or manage the application processes. Doing so will cause hangs and timeouts.
+**CRITICAL: You must start the demo application before running tests.** The `setup_script` installs dependencies and k6, but background processes do NOT survive into the agent phase. You MUST start the target app yourself.
 
 **Pre-execution checklist:**
-1. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this succeeds, the app is ready. If it fails, report the error in the MR note; do NOT try to start the app yourself.
-2. **Verify k6 is installed:** `k6 version` — k6 is pre-installed by setup_script. If somehow missing, report the error; do NOT spend time installing it.
+1. **Identify which app the MR targets** from the diff (Calliope Books = `demos/calliope-books/`, Midas Bank = `demos/midas-bank/`)
+2. **Start the target app in the background:**
+   - Calliope Books: `cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 & sleep 2`
+   - Midas Bank: `cd demos/midas-bank && nohup python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & sleep 2`
+3. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log (`cat /tmp/calliope.log` or `/tmp/midas.log`) and report the error.
+4. **Verify k6 is installed:** `k6 version` — k6 is pre-installed by setup_script.
 
 **Execution steps:**
 1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
