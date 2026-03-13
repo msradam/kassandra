@@ -6,14 +6,8 @@ setup_script:
   - chmod +x /usr/local/bin/k6
   - k6 version
 
-  # ── Calliope Books (Node.js, port 3000) ──
+  # ── Install dependencies only (processes don't survive into agent phase) ──
+  # Calliope Books (Node.js)
   - (cd demos/calliope-books && npm install 2>&1 | tail -10)
-  - (cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 &)
-  - sleep 3
-  - curl -sf http://localhost:3000/api/health && echo "Calliope Books running on :3000" || (cat /tmp/calliope.log | tail -20 && echo "Calliope Books FAILED")
-
-  # ── Midas Bank (Python, port 8000) ──
+  # Midas Bank (Python)
   - pip3.12 install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -10 || pip install -r demos/midas-bank/requirements.txt 2>&1 | tail -10
-  - (cd demos/midas-bank && nohup python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &)
-  - sleep 3
-  - curl -sf http://localhost:8000/api/health && echo "Midas Bank running on :8000" || (cat /tmp/midas.log | tail -20 && echo "Midas Bank FAILED")

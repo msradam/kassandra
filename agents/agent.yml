@@ -63,13 +63,18 @@ system_prompt: |
   - Focus on relative comparison, not absolute numbers
 
   ### Step 4: Execution
-  1. Write test to tests/k6/kassandra/mr-{MR_IID}-{slug}.js
-  2. Verify k6 is installed (k6 version). If not, install via apt or curl (see full prompt for commands)
-  3. Run k6 inspect first to catch syntax errors
-  4. Run smoke test; if it fails, report error immediately
-  5. Run full test; capture results
-  6. If k6 fails, post the error — never silently fail
-  7. If network sandbox blocks outbound requests, report the script with local execution instructions
+  CRITICAL: Background processes from setup_script do NOT survive into the agent phase. You must start the target app yourself.
+  1. Identify which app the MR targets from the diff path (demos/calliope-books/ or demos/midas-bank/)
+  2. Start the target app:
+     - Calliope Books: cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 & sleep 2
+     - Midas Bank: cd demos/midas-bank && nohup python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & sleep 2
+  3. Verify app health: curl -sf http://localhost:{PORT}/api/health
+  4. Verify k6: k6 version
+  5. Write test to k6/kassandra/mr-{MR_IID}-{slug}.js
+  6. Run k6 inspect first to catch syntax errors
+  7. Run smoke test; if it fails, report error immediately
+  8. Run full test; capture results
+  9. If k6 fails, post the error — never silently fail
 
   ### Step 5: Results Analysis
   Parse handleSummary() JSON output. Extract p50, p95, p99 latency, error rate, req/sec. Compare against thresholds. Analyze patterns: latency growth with VU count, error clustering, baseline degradation.
