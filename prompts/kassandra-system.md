@@ -452,9 +452,9 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
 
 **Pre-execution checklist:**
 1. **Identify which app the MR targets** from the diff (Calliope Books = `demos/calliope-books/`, Midas Bank = `demos/midas-bank/`)
-2. **Start the target app in the background:**
-   - Calliope Books: `cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 & sleep 2`
-   - Midas Bank: `cd demos/midas-bank && nohup python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & sleep 2`
+2. **Start the target app in the background** (IMPORTANT: `run_command` waits for ALL child processes. You MUST use `setsid` + `disown` to fully detach, or the command will hang forever):
+   - Calliope Books: `bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'`
+   - Midas Bank: `bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'`
 3. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log (`cat /tmp/calliope.log` or `/tmp/midas.log`) and report the error.
 4. **Verify k6 is installed:** `k6 version` — k6 is pre-installed by setup_script.
 

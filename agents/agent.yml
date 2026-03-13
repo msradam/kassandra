@@ -65,9 +65,9 @@ system_prompt: |
   ### Step 4: Execution
   CRITICAL: Background processes from setup_script do NOT survive into the agent phase. You must start the target app yourself.
   1. Identify which app the MR targets from the diff path (demos/calliope-books/ or demos/midas-bank/)
-  2. Start the target app:
-     - Calliope Books: cd demos/calliope-books && nohup node app.js > /tmp/calliope.log 2>&1 & sleep 2
-     - Midas Bank: cd demos/midas-bank && nohup python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & sleep 2
+  2. Start the target app (IMPORTANT: run_command waits for ALL child processes, so you must fully detach):
+     - Calliope Books: bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'
+     - Midas Bank: bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'
   3. Verify app health: curl -sf http://localhost:{PORT}/api/health
   4. Verify k6: k6 version
   5. Write test to k6/kassandra/mr-{MR_IID}-{slug}.js
