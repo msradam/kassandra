@@ -36,6 +36,12 @@
 
 ### Review Environment
 - Pattern: http://localhost:3000
+- **MANDATORY startup command** (copy-paste exactly, do NOT modify):
+  ```
+  bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'
+  ```
+- After startup, verify: `curl -sf http://localhost:3000/api/health`
+- If health check fails, check logs: `cat /tmp/calliope.log`
 
 ### API Endpoints
 - POST /api/auth/register — register user
