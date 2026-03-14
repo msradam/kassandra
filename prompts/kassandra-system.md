@@ -392,8 +392,8 @@ ${junitTestCases}
 
   return {
     stdout: JSON.stringify(report, null, 2),
-    'summary.json': JSON.stringify(report, null, 2),
-    'junit-results.xml': junitXml,  // GitLab picks this up as a test report artifact
+    'k6/kassandra/results/mr-{MR_IID}-summary.json': JSON.stringify(report, null, 2),
+    'k6/kassandra/results/mr-{MR_IID}-junit.xml': junitXml,  // GitLab CI picks this up as a test report artifact
   };
 }
 ```
@@ -470,121 +470,106 @@ Scenarios run concurrently by default. Use `startTime` to sequence phases:
 
 Changed-endpoint scenarios SHOULD run concurrently when possible — this tests realistic concurrent access patterns and reveals resource contention between endpoints.
 
-### Step 4: Test Execution
+### Step 4: Commit Test & Trigger CI
 
-**CRITICAL: You must start the demo application before running tests.** The `setup_script` installs dependencies and k6, but background processes do NOT survive into the agent phase. You MUST start the target app yourself.
+**Architecture:** You are the brain — CI is the muscle. You analyze diffs, generate k6 scripts, and interpret results. The CI pipeline handles execution and produces GitLab-native artifacts (JUnit XML in MR test report widget).
 
-**Pre-execution checklist:**
-1. **Identify which app the MR targets** from the diff (Calliope Books = `demos/calliope-books/`, Midas Bank = `demos/midas-bank/`)
-2. **Start the target app in the background** (IMPORTANT: `run_command` waits for ALL child processes. You MUST use `setsid` + `disown` to fully detach, or the command will hang forever):
-   - Calliope Books: `bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'`
-   - Midas Bank: `bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'`
-3. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log (`cat /tmp/calliope.log` or `/tmp/midas.log`) and report the error.
-4. **Verify k6 is installed:** `k6 version` — k6 is pre-installed by setup_script.
+**This approach eliminates `run_command` reliability issues and lights up GitLab's native MR widgets.**
 
-**Execution steps:**
-1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file`
-2. **Validate syntax:** `k6 inspect {script_path}` — catches import/syntax errors before execution
-3. **Run smoke test first:** `k6 run --scenario smoke {script_path}`
-   - If smoke fails → report error immediately, do not proceed to load test
-4. **Run full test:** `k6 run {script_path}` using `run_command`
-5. **Capture results:** Parse stdout and `summary.json`
-6. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
+**Steps:**
 
-### Step 5: Results Analysis
+1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file_with_contents`
 
-After k6 completes:
+2. **Commit the test script + endpoint manifest** to the MR's source branch using `create_commit`:
+   - Include both files: the k6 script and the endpoint manifest from Step 2
+   - Commit message: `perf: add Kassandra k6 test for MR !{MR_IID}`
+   - Branch: the MR's source branch (from `get_merge_request`)
+   - This commit triggers the `kassandra-perf-test` CI job automatically
 
-1. **Read `summary.json`** written by `handleSummary()` using `read_file`. This gives you structured access to all metrics and threshold results.
+3. **Post the analysis MR note** (Step 5) immediately — don't wait for CI
 
-2. **Extract per-endpoint metrics** from the tagged data:
-   - `metrics['http_req_duration{endpoint:advanced_search}'].values` → `{ avg, min, max, med, 'p(90)', 'p(95)', 'p(99)' }`
-   - `metrics['http_req_failed{endpoint:advanced_search}'].values` → `{ rate, passes, fails }`
-   - Custom Trends: `metrics['advanced_search_latency'].values` → same percentile breakdown
-   - `metrics['http_reqs'].values` → `{ count, rate }` (total requests and RPS)
+**IMPORTANT:** The `handleSummary()` in your generated script MUST output results to `k6/kassandra/results/` directory:
+```javascript
+return {
+  stdout: JSON.stringify(report, null, 2),
+  'k6/kassandra/results/mr-{MR_IID}-summary.json': JSON.stringify(report, null, 2),
+  'k6/kassandra/results/mr-{MR_IID}-junit.xml': junitXml,
+};
+```
+These paths are required — the CI job collects artifacts from `k6/kassandra/results/` and feeds JUnit XML to GitLab's test report widget.
 
-3. **Check threshold results** in `thresholds` object:
-   - Each entry shows `{ "threshold_expression": true/false }`
-   - Any `false` = threshold breach → flag in report
+**If `create_commit` fails:** Fall back to writing the script via `create_file_with_contents` and report the error. Do NOT silently fail.
 
-4. **Analyze patterns across endpoints:**
-   - Compare p95 between new endpoints and baseline — large gap suggests new code is slower
-   - Check `dropped_iterations` (arrival-rate only) — if >0, the server couldn't keep up with target RPS
-   - Compare error rates between smoke vs load — errors only under load suggest concurrency issues
-   - Check if baseline endpoints degraded during load — indicates resource contention from new code
-   - Look for high p99/p95 ratio — suggests tail latency outliers (GC pauses, lock contention)
+### Step 5: MR Report
 
-5. **Arrival-rate specific analysis** (this is unique insight k6 provides):
-   - If `dropped_iterations > 0`: "Target RPS of {rate}/s could not be sustained — the endpoint dropped {N} iterations. This suggests the endpoint cannot handle the target throughput."
-   - If `maxVUs` was reached: "k6 allocated all {maxVUs} VUs to maintain {rate} RPS. High VU count relative to RPS indicates slow response times causing VU queuing."
-
-6. **Write plain-English observations** — not just numbers. Relate metrics to code:
-   - "The advanced search endpoint's p95 of 450ms with 10 RPS suggests the full-text search query is efficient, but the p99 spike to 1200ms indicates occasional slow queries — possibly when the search term matches many results."
-
-### Step 6: MR Report
-
-Post a merge request note using `create_mr_note` with this exact format:
+Post a merge request note using `create_merge_request_note` immediately after committing. This note provides your analysis upfront — CI results will appear in the MR widget automatically.
 
 ```markdown
-## 🔮 Kassandra Performance Report
+## 🔮 Kassandra Performance Analysis
 
 **MR:** !{MR_IID} | **Branch:** `{BRANCH}` → `{TARGET_BRANCH}`
-**Environment:** `{REVIEW_ENV_URL}` | **Generated:** {TIMESTAMP}
+**Generated:** {TIMESTAMP}
 
-### Per-Endpoint Results
+### Changes Detected
 
-| Endpoint | Change | Executor | p95 | p99 | Error Rate | RPS | Threshold | Status |
-|----------|--------|----------|-----|-----|------------|-----|-----------|--------|
-| `GET /api/books/search/advanced` | new | `constant-arrival-rate` @ 10/s | {p95}ms | {p99}ms | {rate}% | {rps} | p95<2000ms | ✅/❌ |
-| `GET /api/books?year_from=..` | modified | `constant-vus` × 10 | {p95}ms | {p99}ms | {rate}% | {rps} | p95<1000ms | ✅/❌ |
+| Endpoint | Change Type | Classification | Auth |
+|----------|------------|----------------|------|
+| `{METHOD} {PATH}` | {new/modified} | {classification} | {yes/no} |
 
-### Throughput Analysis
+### Test Plan
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Total Requests | {count} | — |
-| Dropped Iterations | {count} | {0 = target RPS sustained / >0 = endpoint can't keep up} |
-| Peak VU Allocation | {count} | {relative to preAllocatedVUs and maxVUs} |
+| Endpoint | Executor | Threshold | Rationale |
+|----------|----------|-----------|-----------|
+| `{METHOD} {PATH}` | `{executor}` @ {params} | p95 < {value}ms | {why this executor and threshold} |
 
 ### Baseline Regression
 
-| Endpoint | p95 | Error Rate | Status |
-|----------|-----|------------|--------|
-| `{METHOD} {PATH}` | {value}ms | {rate}% | ✅ No degradation / ⚠️ Degraded |
-
-### Observations
-
-{Plain-English analysis. Discuss:
-- Latency patterns under load
-- Error clustering or distribution
-- Comparison to baseline
-- Resource concerns
-- Note that review environment numbers are RELATIVE, not absolute production indicators}
+| Critical Path | Source | Threshold |
+|---------------|--------|-----------|
+| `{METHOD} {PATH}` | AGENTS.md | p95 < {value}ms |
 
 ### Decisions Made
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Executor | `{executor}` | {rationale} |
-| Load profile | {profile} | {rationale} |
-| p95 threshold | {value}ms | {source: AGENTS.md / default / endpoint type} |
+| Executor for `{endpoint}` | `{executor}` | {rationale from classification} |
+| p95 threshold | {value}ms | {source: AGENTS.md SLO / endpoint-type default} |
+| Load profile | {vus/rps} × {duration} | {rationale} |
 
-### Files
-- 📄 Generated test: `k6/kassandra/mr-{MR_IID}-{slug}.js`
-- 📊 Results: `k6/kassandra/results/mr-{MR_IID}-summary.json`
-- 📋 JUnit XML: `k6/kassandra/results/mr-{MR_IID}-junit.xml` *(GitLab test report compatible)*
+### What Happens Next
+
+✅ k6 test script committed → `k6/kassandra/mr-{MR_IID}-{slug}.js`
+✅ Endpoint manifest committed → `k6/kassandra/mr-{MR_IID}-endpoints.json`
+⏳ **CI pipeline triggered** — the `kassandra-perf-test` job will:
+  1. Start the application
+  2. Run the k6 load test
+  3. Produce JUnit XML artifacts
+
+📊 **Results will appear in the MR test report widget** once CI completes.
+Look for the "Test summary" section in this MR — threshold pass/fail will show there.
+
+### Files Committed
+- 📄 Test script: `k6/kassandra/mr-{MR_IID}-{slug}.js`
 - 📋 Endpoint manifest: `k6/kassandra/mr-{MR_IID}-endpoints.json`
-
-<details><summary>Raw k6 Output</summary>
-
-```
-{k6 stdout}
-```
-</details>
 
 > 🔮 *Kassandra sees the performance problems you won't — until production.*
 > Reply to re-run with different parameters.
 ```
+
+### Step 6: Results Follow-up (Optional)
+
+If re-invoked after CI completes (e.g., user asks "how did the perf test go?"), you can analyze the CI results:
+
+1. **Read the summary JSON** from the committed results: `k6/kassandra/results/mr-{MR_IID}-summary.json`
+2. **Extract per-endpoint metrics** from tagged data:
+   - `metrics['http_req_duration{endpoint:NAME}'].values` → `{ avg, min, max, med, 'p(90)', 'p(95)', 'p(99)' }`
+   - `metrics['http_req_failed{endpoint:NAME}'].values` → `{ rate, passes, fails }`
+3. **Check threshold results** — any `false` = threshold breach
+4. **Post a follow-up MR note** with detailed results analysis:
+   - Per-endpoint p95/p99, error rates, RPS
+   - Throughput analysis (dropped iterations, VU allocation)
+   - Baseline regression comparison
+   - Plain-English observations relating metrics to code changes
 
 ---
 
@@ -704,16 +689,22 @@ Available tools and when to use them:
 | Tool | Purpose | When |
 |------|---------|------|
 | `read_file` | Read file contents | AGENTS.md, existing tests, config files |
+| `read_files` | Read multiple files at once | Batch-reading source files |
 | `find_files` | Search for files by pattern | Discovering existing tests, specs |
 | `grep` | Search file contents | Finding route definitions, imports |
-| `run_command` | Execute shell commands | Running k6, validating scripts |
-| `create_file` | Write files | Generated test scripts, results |
-| `create_mr_note` | Post MR comments | Performance reports |
+| `run_command` | Execute shell commands | Validating scripts with `k6 inspect` |
+| `create_file_with_contents` | Write files | Generated test scripts, manifests |
+| `create_commit` | Commit files to branch | **Primary execution method** — commits k6 script to trigger CI |
+| `create_merge_request_note` | Post MR comments | Performance analysis reports |
 | `list_merge_request_diffs` | Get MR diff | Primary input |
-| `get_merge_request` | Get MR metadata | IID, title, branches |
+| `get_merge_request` | Get MR metadata | IID, title, source branch |
+| `list_repository_tree` | Browse repo structure | Finding existing files |
+| `get_repository_file` | Read files from repo | Reading files by ref |
 
 **Tool usage rules:**
 - Read before writing — always check what exists
-- Run `k6 inspect {script}` before `k6 run` to catch syntax errors
+- Use `create_commit` to commit k6 scripts — this triggers the CI pipeline automatically
+- Do NOT use `run_command` to execute k6 tests — let CI handle execution
+- You MAY use `run_command` for `k6 inspect` (syntax validation) if needed
 - Log all tool calls and results for auditability
 - If a tool fails, report the error — never silently skip
