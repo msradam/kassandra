@@ -41,6 +41,12 @@
 ### Review Environment
 - Pattern: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
+- **MANDATORY startup command** (copy-paste exactly, do NOT modify):
+  ```
+  bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'
+  ```
+- After startup, verify: `curl -sf http://localhost:8000/api/health`
+- If health check fails, check logs: `cat /tmp/midas.log`
 
 ### API Endpoints
 - POST /api/auth/register — register user (creates default checking account)
