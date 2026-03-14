@@ -39,9 +39,9 @@
 - App type: `calliope`
 - **Execution:** Use a SINGLE `run_command` that starts the app, runs k6, and kills the app. Never start the app in a separate command — `run_command` hangs if child processes survive.
   ```
-  bash scripts/run-k6-test.sh {script_path} calliope
+  bash scripts/run-k6-test.sh {script_path} calliope "" {source_branch}
   ```
-  The helper script handles startup, health check, k6 execution, and cleanup.
+  The 4th argument checks out the MR source branch so the app runs the feature code, not main.
 
 ### API Endpoints
 - POST /api/auth/register — register user
