@@ -481,56 +481,24 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
    - Commit message: `perf: add Kassandra k6 test for MR !{MR_IID}`
    - Branch: the MR's source branch (from `get_merge_request`)
 
-3. **Execute the test using a SINGLE `run_command` call** that starts the app, runs k6, and kills the app — all in one shell invocation.
+3. **Execute the test using the helper script** with a SINGLE `run_command` call:
 
-   **CRITICAL: Why a single command?** The `run_command` tool hangs if ANY child process survives after the shell exits. Separate `run_command` calls for "start app" and "run k6" will cause the first call to hang forever. The solution is to do EVERYTHING in one `run_command`:
-
-   **For Calliope Books (Node.js on port 3000):**
    ```
-   bash -c '
-     set -e
-     cd demos/calliope-books
-     npm install --silent 2>/dev/null
-     node app.js > /tmp/calliope.log 2>&1 &
-     APP_PID=$!
-     sleep 3
-     curl -sf http://localhost:3000/api/health || { echo "App failed to start:"; cat /tmp/calliope.log; kill $APP_PID 2>/dev/null; exit 1; }
-     echo "App running on PID $APP_PID"
-     cd ../..
-     mkdir -p k6/kassandra/results
-     k6 run {script_path} 2>&1; K6_EXIT=$?
-     kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
-     exit $K6_EXIT
-   '
+   bash scripts/run-k6-test.sh {script_path} {app_type}
    ```
 
-   **For Midas Bank (Python/uvicorn on port 8000):**
-   ```
-   bash -c '
-     set -e
-     cd demos/midas-bank
-     pip3 install -r requirements.txt --quiet 2>/dev/null
-     python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &
-     APP_PID=$!
-     sleep 3
-     curl -sf http://localhost:8000/api/health || { echo "App failed to start:"; cat /tmp/midas.log; kill $APP_PID 2>/dev/null; exit 1; }
-     echo "App running on PID $APP_PID"
-     cd ../..
-     mkdir -p k6/kassandra/results
-     k6 run {script_path} 2>&1; K6_EXIT=$?
-     kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
-     exit $K6_EXIT
-   '
-   ```
+   Where:
+   - `{script_path}` = path to the k6 script you just committed (e.g., `k6/kassandra/mr-15-statement.js`)
+   - `{app_type}` = `calliope` (Node.js on port 3000) or `midas` (Python/uvicorn on port 8000)
 
-   **Adapt the pattern for other apps** by reading the startup command from AGENTS.md. The structure is always:
-   1. Start app in background (`&`), capture PID
-   2. Wait for health check
-   3. Run k6
-   4. Kill app, wait for cleanup
-   5. Exit with k6's exit code
+   The script handles everything: app startup, health check, k6 execution, and cleanup — all in one process.
 
-   **All in one `run_command` call. NEVER split app startup and k6 execution into separate `run_command` calls.**
+   **CRITICAL: Why a single command?** The `run_command` tool hangs if ANY child process survives after the shell exits. The helper script starts the app, runs k6, and kills the app — all in one process. NEVER use separate `run_command` calls for "start app" and "run k6".
+
+   **If the helper script is not available**, use this inline pattern instead:
+   ```
+   bash -c 'cd demos/{app-dir} && npm install --silent 2>/dev/null && node app.js > /tmp/app.log 2>&1 & APP_PID=$!; sleep 3; curl -sf http://localhost:{port}/api/health || { cat /tmp/app.log; kill $APP_PID 2>/dev/null; exit 1; }; cd ../.. && mkdir -p k6/kassandra/results && k6 run {script_path} 2>&1; K6_EXIT=$?; kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; exit $K6_EXIT'
+   ```
 
 4. **If k6 or the app fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
 
