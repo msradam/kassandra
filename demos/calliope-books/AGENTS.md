@@ -36,12 +36,12 @@
 
 ### Review Environment
 - Pattern: http://localhost:3000
-- **MANDATORY startup command** (copy-paste exactly, do NOT modify):
+- App type: `calliope`
+- **Execution:** Use a SINGLE `run_command` that starts the app, runs k6, and kills the app. Never start the app in a separate command — `run_command` hangs if child processes survive.
   ```
-  bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'
+  bash scripts/run-k6-test.sh {script_path} calliope
   ```
-- After startup, verify: `curl -sf http://localhost:3000/api/health`
-- If health check fails, check logs: `cat /tmp/calliope.log`
+  The helper script handles startup, health check, k6 execution, and cleanup.
 
 ### API Endpoints
 - POST /api/auth/register — register user
@@ -55,8 +55,8 @@
 - POST /api/books/:id/reviews — add review (auth, rating 1-5)
 
 ### Test Conventions
-- Directory: k6/
-- Naming: kebab-case (e.g., book-search-load.js)
+- Directory: k6/kassandra/
+- Naming: mr-{MR_IID}-{slug}.js (e.g., mr-18-book-search.js)
 - Use groups for logical grouping
 - Include handleSummary() for JSON output
 - Tag requests with endpoint and scenario

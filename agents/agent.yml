@@ -24,7 +24,7 @@ system_prompt: |
   ### Step 3: Test Generation
   One endpoint = one scenario = one exec function. Per-endpoint thresholds via tags.
 
-  Executor selection:
+  Executor selection (NEVER use ramping-vus — it controls concurrency, not throughput, hiding real problems):
   | Type | Executor |
   |---|---|
   | New REST CRUD | constant-arrival-rate @ 10 RPS |
