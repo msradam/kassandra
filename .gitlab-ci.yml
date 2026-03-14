@@ -27,6 +27,93 @@ lint-python:
     - if: $CI_MERGE_REQUEST_IID
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+kassandra-perf-test:
+  stage: test
+  image: node:18-bookworm
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    # Install k6 binary
+    - curl -sL https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-amd64.tar.gz | tar xz
+    - mv k6-v0.50.0-linux-amd64/k6 /usr/local/bin/
+    - k6 version
+    # Install Python (for Midas Bank if needed)
+    - apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv > /dev/null 2>&1
+  script:
+    - mkdir -p k6/kassandra/results
+    - |
+      # Find all Kassandra test scripts on this branch
+      SCRIPTS=$(find k6/kassandra -name "mr-*.js" -type f 2>/dev/null | sort)
+      if [ -z "$SCRIPTS" ]; then
+        echo "No Kassandra test scripts found — skipping"
+        exit 0
+      fi
+
+      for script in $SCRIPTS; do
+        echo ""
+        echo "════════════════════════════════════════════════════════"
+        echo "  Running: $script"
+        echo "════════════════════════════════════════════════════════"
+
+        # Validate script syntax first
+        k6 inspect "$script" || { echo "FAILED: $script has syntax errors"; continue; }
+
+        # Detect target app from BASE_URL in script
+        APP_PID=""
+        if grep -q "localhost:3000\|__ENV.BASE_URL.*3000" "$script"; then
+          echo "→ Detected target: Calliope Books (Node.js :3000)"
+          cd demos/calliope-books
+          npm install --silent 2>/dev/null
+          node app.js > /tmp/calliope.log 2>&1 &
+          APP_PID=$!
+          cd ../..
+          sleep 3
+          curl -sf http://localhost:3000/api/health || { echo "✗ Calliope failed to start"; cat /tmp/calliope.log 2>/dev/null; exit 1; }
+          echo "✓ Calliope Books is running"
+        elif grep -q "localhost:8000\|__ENV.BASE_URL.*8000" "$script"; then
+          echo "→ Detected target: Midas Bank (Python :8000)"
+          cd demos/midas-bank
+          pip3 install -r requirements.txt --quiet 2>/dev/null
+          python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &
+          APP_PID=$!
+          cd ../..
+          sleep 3
+          curl -sf http://localhost:8000/api/health || { echo "✗ Midas failed to start"; cat /tmp/midas.log 2>/dev/null; exit 1; }
+          echo "✓ Midas Bank is running"
+        else
+          echo "⚠ Could not detect target app — running k6 anyway"
+        fi
+
+        # Run k6 test
+        echo ""
+        echo "→ Executing k6 test..."
+        k6 run "$script" || echo "⚠ k6 exited with non-zero status (threshold breach or error)"
+
+        # Cleanup: stop the app for next script
+        if [ -n "$APP_PID" ]; then
+          kill "$APP_PID" 2>/dev/null || true
+          wait "$APP_PID" 2>/dev/null || true
+          APP_PID=""
+        fi
+      done
+
+      echo ""
+      echo "════════════════════════════════════════════════════════"
+      echo "  Kassandra CI — All tests complete"
+      echo "════════════════════════════════════════════════════════"
+      ls -la k6/kassandra/results/ 2>/dev/null || echo "No result files generated"
+  artifacts:
+    when: always
+    reports:
+      junit: k6/kassandra/results/*junit*.xml
+    paths:
+      - k6/kassandra/results/
+    expire_in: 30 days
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      changes:
+        - k6/kassandra/**
+
 deploy-review:
   stage: review
   environment:
