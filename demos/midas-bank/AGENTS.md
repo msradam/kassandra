@@ -41,12 +41,12 @@
 ### Review Environment
 - Pattern: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
-- **MANDATORY startup command** (copy-paste exactly, do NOT modify):
+- App type: `midas`
+- **Execution:** Use a SINGLE `run_command` that starts the app, runs k6, and kills the app. Never start the app in a separate command — `run_command` hangs if child processes survive.
   ```
-  bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'
+  bash scripts/run-k6-test.sh {script_path} midas
   ```
-- After startup, verify: `curl -sf http://localhost:8000/api/health`
-- If health check fails, check logs: `cat /tmp/midas.log`
+  The helper script handles startup, health check, k6 execution, and cleanup.
 
 ### API Endpoints
 - POST /api/auth/register — register user (creates default checking account)
@@ -59,8 +59,8 @@
 - POST /api/transactions/deposit — deposit to account (auth)
 
 ### Test Conventions
-- Directory: k6/
-- Naming: kebab-case (e.g., transfer-load.js)
+- Directory: k6/kassandra/
+- Naming: mr-{MR_IID}-{slug}.js (e.g., mr-15-transfer.js)
 - Use groups for logical grouping
 - Include handleSummary() for JSON output
 - Tag requests with endpoint and scenario
