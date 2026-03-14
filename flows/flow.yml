@@ -13,16 +13,11 @@ definition:
         - "context:goal"
       toolset:
         - read_file
-        - read_files
-        - find_files
-        - grep
         - run_command
         - create_file_with_contents
         - create_merge_request_note
         - list_merge_request_diffs
         - get_merge_request
-        - get_repository_file
-        - list_repository_tree
         - create_commit
       ui_log_events:
         - on_agent_final_answer
