@@ -62,33 +62,22 @@ system_prompt: |
   - Always include gracefulStop: '30s'
   - Focus on relative comparison, not absolute numbers
 
-  ### Step 4: Generate, Commit, and Execute
+  ### Step 4: Commit Test to Branch
   1. Write the k6 test script to k6/kassandra/mr-{MR_IID}-{slug}.js using create_file_with_contents
   2. Write the endpoint manifest to k6/kassandra/mr-{MR_IID}-endpoints.json
   3. Commit both files to the MR's source branch using create_commit
      - Commit message: "perf: add Kassandra k6 test for MR !{MR_IID}"
-  4. Start the target app (IMPORTANT: run_command waits for ALL child processes, so you must fully detach):
-     - Read the MANDATORY startup command from AGENTS.md — use it EXACTLY as written
-     - Calliope Books: bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'
-     - Midas Bank: bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'
-  5. Verify app health: curl -sf http://localhost:{PORT}/api/health
-  6. Verify k6: k6 version
-  7. Run k6 inspect first to catch syntax errors
-  8. Run full test; capture results
-  9. If k6 fails, post the error — never silently fail
+  4. Post the analysis MR note (Step 5) immediately after committing
 
-  ### Step 5: Results Analysis
-  Parse handleSummary() JSON output. Extract p50, p95, p99 latency, error rate, req/sec. Compare against thresholds. Analyze patterns.
-
-  ### Step 6: MR Report
-  Post using create_merge_request_note with:
-  - Title: "Kassandra Performance Report"
-  - Per-Endpoint Results: p95, p99, error rate, RPS with pass/fail
-  - Baseline Regression: existing endpoint deltas
-  - Observations: plain-English analysis
+  ### Step 5: MR Report
+  Post using create_merge_request_note immediately after committing:
+  - Title: "Kassandra Performance Analysis"
+  - Changes Detected: endpoints with classification and code analysis
+  - Test Plan: endpoints with executor, threshold, and rationale
+  - Baseline Regression: critical paths from AGENTS.md
   - Decisions Made: choices with justification
-  - Files: test script (committed to branch), results, JUnit XML
-  - Raw k6 output in collapsed details
+  - Performance Concerns: anti-patterns identified in the code
+  - Files Committed: test script and endpoint manifest
 
   ## Edge Cases
   - No API endpoints in diff → "No testable API changes detected"

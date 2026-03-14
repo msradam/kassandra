@@ -472,8 +472,6 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
 
 ### Step 4: Generate, Commit, and Execute
 
-**Architecture:** You do everything — analyze diffs, generate k6 scripts, commit them to the branch for visibility, AND execute them locally. The committed scripts serve as auditable artifacts visible in the MR diff.
-
 **Steps:**
 
 1. **Write the test script** to `k6/kassandra/mr-{MR_IID}-{endpoint-slug}.js` using `create_file_with_contents`
@@ -484,18 +482,20 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
    - Branch: the MR's source branch (from `get_merge_request`)
 
 3. **Start the target application** (IMPORTANT: `run_command` waits for ALL child processes. You MUST use `setsid` + `disown` to fully detach, or the command will hang forever):
-   - Read the MANDATORY startup command from AGENTS.md — use it EXACTLY as written
+   - Read the MANDATORY startup command from AGENTS.md — use it EXACTLY as written, character for character
    - Calliope Books: `bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'`
    - Midas Bank: `bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'`
 
-4. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log and report the error.
+4. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log (`cat /tmp/calliope.log` or `/tmp/midas.log`) and report the error.
 
-5. **Run the k6 test:**
+5. **Verify k6 is installed:** `k6 version`
+
+6. **Run the k6 test:**
    - Validate syntax: `k6 inspect {script_path}`
    - Run full test: `k6 run {script_path}` using `run_command`
    - Capture results from stdout
 
-6. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output.
+7. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
 
 **IMPORTANT:** The `handleSummary()` in your generated script MUST output results to `k6/kassandra/results/` directory:
 ```javascript
@@ -506,15 +506,13 @@ return {
 };
 ```
 
-**If `create_commit` fails:** Fall back to writing the script via `create_file_with_contents` and report the error. Do NOT silently fail. Still execute the test locally.
+**If `create_commit` fails:** Fall back to writing the script via `create_file_with_contents` and report the error. Do NOT silently fail. Still execute the test.
 
 ### Step 5: Results Analysis
 
 After k6 completes:
 
-1. **Read `summary.json`** written by `handleSummary()` using `read_file`. This gives you structured access to all metrics and threshold results.
-
-2. **Extract per-endpoint metrics** from the tagged data:
+1. **Extract per-endpoint metrics** from the tagged data:
    - `metrics['http_req_duration{endpoint:NAME}'].values` → `{ avg, min, max, med, 'p(90)', 'p(95)', 'p(99)' }`
    - `metrics['http_req_failed{endpoint:NAME}'].values` → `{ rate, passes, fails }`
    - Custom Trends: `metrics['NAME_latency'].values` → same percentile breakdown
@@ -722,9 +720,9 @@ Available tools and when to use them:
 | `read_files` | Read multiple files at once | Batch-reading source files |
 | `find_files` | Search for files by pattern | Discovering existing tests, specs |
 | `grep` | Search file contents | Finding route definitions, imports |
-| `run_command` | Execute shell commands | Starting apps, running k6 tests, validating scripts |
+| `run_command` | Execute shell commands | Starting apps, running k6, validating scripts |
 | `create_file_with_contents` | Write files | Generated test scripts, manifests |
-| `create_commit` | Commit files to branch | Commits k6 script to MR branch for visibility |
+| `create_commit` | Commit files to branch | Commits k6 script + manifest to MR branch |
 | `create_merge_request_note` | Post MR comments | Performance analysis reports |
 | `list_merge_request_diffs` | Get MR diff | Primary input |
 | `get_merge_request` | Get MR metadata | IID, title, source branch |
@@ -734,7 +732,8 @@ Available tools and when to use them:
 **Tool usage rules:**
 - Read before writing — always check what exists
 - Use `create_commit` to commit k6 scripts to the MR branch (for visibility and auditability)
-- Use `run_command` to start the app, validate scripts (`k6 inspect`), and execute k6 tests
+- Use `run_command` to start the app and execute k6 tests
 - Run `k6 inspect {script}` before `k6 run` to catch syntax errors
 - Log all tool calls and results for auditability
 - If a tool fails, report the error — never silently skip
+- If `run_command` hangs, the agent session will time out — the committed k6 script still serves as the deliverable
