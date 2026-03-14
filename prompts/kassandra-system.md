@@ -177,8 +177,8 @@ export const options = {
     smoke: {
       executor: 'per-vu-iterations',
       vus: 1,
-      iterations: 5,
-      maxDuration: '30s',
+      iterations: 3,
+      maxDuration: '15s',
       exec: 'smokeTest',
       startTime: '0s',
       tags: { test_phase: 'smoke' },
@@ -189,33 +189,33 @@ export const options = {
       executor: 'constant-arrival-rate',   // open model for new endpoint
       rate: 10,
       timeUnit: '1s',
-      duration: '1m',
+      duration: '45s',
       preAllocatedVUs: 10,
       maxVUs: 30,
       exec: 'testAdvancedSearch',          // targets its own function
-      startTime: '35s',
+      startTime: '20s',
       tags: { endpoint: 'advanced_search', change_type: 'new' },
-      gracefulStop: '30s',
+      gracefulStop: '15s',
     },
     load_list_books: {
       executor: 'constant-vus',            // closed model for modified endpoint
       vus: 10,
-      duration: '1m',
+      duration: '45s',
       exec: 'testListBooks',
-      startTime: '35s',
+      startTime: '20s',
       tags: { endpoint: 'list_books', change_type: 'modified' },
-      gracefulStop: '30s',
+      gracefulStop: '15s',
     },
 
     // ── Baseline regression ──
     baseline_regression: {
       executor: 'constant-vus',
       vus: 5,
-      duration: '30s',
+      duration: '20s',
       exec: 'baselineTest',
-      startTime: '100s',
+      startTime: '70s',
       tags: { test_phase: 'baseline' },
-      gracefulStop: '30s',
+      gracefulStop: '15s',
     },
   },
 
@@ -464,9 +464,11 @@ Use `exec.vu.idInTest` and `exec.scenario.iterationInTest` for deterministic dat
 #### 3.8 Scenario Timing
 
 Scenarios run concurrently by default. Use `startTime` to sequence phases:
-1. **Smoke** at `0s` — validate endpoints work
-2. **Load scenarios** at `35s` — all changed-endpoint scenarios can run concurrently (they have independent VU pools)
-3. **Baseline regression** after load — verify no resource contention spillover
+1. **Smoke** at `0s` (15s) — validate endpoints work
+2. **Load scenarios** at `20s` (45s each) — all changed-endpoint scenarios can run concurrently
+3. **Baseline regression** at `70s` (20s) — verify no resource contention spillover
+
+**Total wall-clock: ~105s** (under 2 minutes). Keep it tight — agent session time is limited.
 
 Changed-endpoint scenarios SHOULD run concurrently when possible — this tests realistic concurrent access patterns and reveals resource contention between endpoints.
 
@@ -613,19 +615,19 @@ Post a merge request note using `create_merge_request_note` with this exact form
 Review environments are resource-constrained (typically 1 CPU, 256MB–1GB RAM). Test parameters must reflect this:
 
 - **Max 50 VUs** — more will likely crash the environment
-- **2–3 minutes total duration** — enough to detect trends, not enough to exhaust resources
+- **Under 2 minutes total k6 wall-clock time** — enough to detect trends, not enough to exhaust resources or timeout
 - **Focus on relative comparison** — absolute numbers are meaningless in review envs
-- **Always include `gracefulStop: '30s'`** — allow in-flight requests to complete
+- **Always include `gracefulStop: '15s'`** — allow in-flight requests to complete
 
 ### Smoke Test (always first)
 ```javascript
-{ executor: 'per-vu-iterations', vus: 1, iterations: 5, maxDuration: '30s' }
+{ executor: 'per-vu-iterations', vus: 1, iterations: 3, maxDuration: '15s' }
 ```
 
 ### New Endpoint — Throughput Validation (preferred for new endpoints)
 ```javascript
-{ executor: 'constant-arrival-rate', rate: 10, timeUnit: '1s', duration: '1m',
-  preAllocatedVUs: 10, maxVUs: 30, gracefulStop: '30s' }
+{ executor: 'constant-arrival-rate', rate: 10, timeUnit: '1s', duration: '45s',
+  preAllocatedVUs: 10, maxVUs: 30, gracefulStop: '15s' }
 ```
 Use this for new endpoints. It maintains a fixed 10 RPS regardless of response time, proving the endpoint can handle sustained throughput. Watch `dropped_iterations` — if >0, the endpoint can't keep up.
 
@@ -633,31 +635,32 @@ Use this for new endpoints. It maintains a fixed 10 RPS regardless of response t
 ```javascript
 { executor: 'ramping-arrival-rate', startRate: 1, timeUnit: '1s',
   stages: [
-    { duration: '30s', target: 20 },   // ramp to 20 RPS
-    { duration: '30s', target: 20 },   // hold at 20 RPS
-    { duration: '30s', target: 0 },    // ramp down
+    { duration: '20s', target: 15 },   // ramp to 15 RPS
+    { duration: '20s', target: 15 },   // hold at 15 RPS
+    { duration: '10s', target: 0 },    // ramp down
   ],
-  preAllocatedVUs: 10, maxVUs: 50, gracefulStop: '30s' }
+  preAllocatedVUs: 10, maxVUs: 50, gracefulStop: '15s' }
 ```
 Use this for read-heavy/search endpoints to find where latency degrades. The ramp reveals the throughput ceiling.
 
 ### Modified Endpoint — Regression Check
 ```javascript
-{ executor: 'constant-vus', vus: 10, duration: '1m', gracefulStop: '30s' }
+{ executor: 'constant-vus', vus: 10, duration: '45s', gracefulStop: '15s' }
 ```
 Use this for endpoints that already exist but were modified. Simpler closed model — verify the change didn't break anything.
 
 ### Per-User Test (auth, rate-limited)
 ```javascript
-{ executor: 'per-vu-iterations', vus: 5, iterations: 10, maxDuration: '1m' }
+{ executor: 'per-vu-iterations', vus: 5, iterations: 10, maxDuration: '30s' }
 ```
 
 ### Hard Limits
-- **Duration cap:** 2 minutes per scenario (runner time is precious)
+- **Duration cap:** 45 seconds per scenario (agent session time is precious)
 - **VU cap:** 50 max (review envs are resource-constrained)
 - **RPS cap:** 20/s max for arrival-rate executors
-- **Always include `gracefulStop: '30s'`**
+- **Always include `gracefulStop: '15s'`**
 - **Always include `abortOnFail` threshold** for catastrophic failure (>50% errors)
+- **Total k6 wall-clock time MUST be under 2 minutes** — leave headroom for agent startup, analysis, and report posting
 
 ---
 

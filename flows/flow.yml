@@ -56,7 +56,7 @@ definition:
         placeholder: history
       unit_primitives: []
       params:
-        timeout: 600
+        timeout: 900
 
   routers:
     - from: "kassandra"
