@@ -45,8 +45,8 @@ definition:
           2. Read AGENTS.md and existing tests (read_file, find_files)
           3. Classify endpoints and choose executors
           4. Generate k6 script with smoke test, load test, and baseline regression
-          5. Execute with k6 (run_command)
-          6. Post performance report (create_merge_request_note)
+          5. Commit k6 script to MR branch (create_commit) — CI pipeline runs the test
+          6. Post performance analysis (create_merge_request_note)
 
           Load limits: max 50 VUs, 3 min duration, always include gracefulStop.
           Always reuse existing auth helpers. Never silently fail.
