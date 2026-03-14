@@ -225,6 +225,7 @@ export const options = {
       { threshold: 'rate<0.50', abortOnFail: true, delayAbortEval: '10s' }, // abort on catastrophic failure
       'rate<0.01',  // overall SLO
     ],
+    'checks': ['rate>0.99'],  // 99% of all checks must pass — bridges checks to CI gate
 
     // ── Per-endpoint thresholds (using tag filters) ──
     'http_req_duration{endpoint:advanced_search}': ['p(95)<2000'],
@@ -338,7 +339,7 @@ export function baselineTest(data) {
   sleep(0.5);
 }
 
-// ── Structured output: JSON for Kassandra to parse, text for humans ──
+// ── Multi-format output: JSON for Kassandra, JUnit XML for GitLab, text for humans ──
 export function handleSummary(data) {
   // Extract key metrics for Kassandra's analysis
   const report = {
@@ -363,13 +364,36 @@ export function handleSummary(data) {
     }
   }
 
+  // Generate JUnit XML for GitLab test report integration
+  // GitLab parses JUnit XML artifacts and shows results in MR widget
+  const thresholdEntries = Object.entries(report.thresholds);
+  const junitTestCases = thresholdEntries.map(([metric, thresholds]) => {
+    return Object.entries(thresholds).map(([expr, passed]) => {
+      const name = `${metric}: ${expr}`;
+      if (passed) {
+        return `    <testcase classname="k6.thresholds" name="${name}" time="0"/>`;
+      }
+      return `    <testcase classname="k6.thresholds" name="${name}" time="0">
+      <failure message="Threshold breached: ${expr}">${metric} failed: ${expr}</failure>
+    </testcase>`;
+    }).join('\n');
+  }).join('\n');
+
+  const totalTests = thresholdEntries.reduce((sum, [, t]) => sum + Object.keys(t).length, 0);
+  const failures = thresholdEntries.reduce((sum, [, t]) =>
+    sum + Object.values(t).filter(p => !p).length, 0);
+
+  const junitXml = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Kassandra Performance Test" tests="${totalTests}" failures="${failures}" time="0">
+${junitTestCases}
+  </testsuite>
+</testsuites>`;
+
   return {
-    // If textSummary is available (jslib loaded), use it for human-readable stdout.
-    // Otherwise, output the structured JSON to stdout too.
-    stdout: typeof textSummary === 'function'
-      ? textSummary(data, { indent: ' ', enableColors: false })
-      : JSON.stringify(report, null, 2),
+    stdout: JSON.stringify(report, null, 2),
     'summary.json': JSON.stringify(report, null, 2),
+    'junit-results.xml': junitXml,  // GitLab picks this up as a test report artifact
   };
 }
 ```
@@ -548,6 +572,8 @@ Post a merge request note using `create_mr_note` with this exact format:
 ### Files
 - 📄 Generated test: `k6/kassandra/mr-{MR_IID}-{slug}.js`
 - 📊 Results: `k6/kassandra/results/mr-{MR_IID}-summary.json`
+- 📋 JUnit XML: `k6/kassandra/results/mr-{MR_IID}-junit.xml` *(GitLab test report compatible)*
+- 📋 Endpoint manifest: `k6/kassandra/mr-{MR_IID}-endpoints.json`
 
 <details><summary>Raw k6 Output</summary>
 
