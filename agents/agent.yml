@@ -62,28 +62,44 @@ system_prompt: |
   - Always include gracefulStop: '30s'
   - Focus on relative comparison, not absolute numbers
 
-  ### Step 4: Commit Test to Branch
+  ### Step 4: Commit and Execute
   1. Write the k6 test script to k6/kassandra/mr-{MR_IID}-{slug}.js using create_file_with_contents
   2. Write the endpoint manifest to k6/kassandra/mr-{MR_IID}-endpoints.json
   3. Commit both files to the MR's source branch using create_commit
      - Commit message: "perf: add Kassandra k6 test for MR !{MR_IID}"
-  4. Post the analysis MR note (Step 5) immediately after committing
+  4. Execute test using a SINGLE run_command that starts app, runs k6, and kills app:
+     CRITICAL: NEVER use separate run_command calls for app startup vs k6 execution.
+     run_command hangs if child processes survive. Combine everything into one bash -c:
+     - Start app in background (&), capture PID
+     - Wait for health check (curl)
+     - Run k6
+     - Kill app, exit with k6 exit code
+     Example for Node.js app:
+     bash -c 'cd demos/calliope-books && npm install --silent 2>/dev/null && node app.js &
+     APP_PID=$!; sleep 3; curl -sf http://localhost:3000/api/health || exit 1;
+     cd ../.. && mkdir -p k6/kassandra/results && k6 run {script}; K6_EXIT=$?;
+     kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; exit $K6_EXIT'
 
-  ### Step 5: MR Report
-  Post using create_merge_request_note immediately after committing:
-  - Title: "Kassandra Performance Analysis"
-  - Changes Detected: endpoints with classification and code analysis
-  - Test Plan: endpoints with executor, threshold, and rationale
-  - Baseline Regression: critical paths from AGENTS.md
-  - Decisions Made: choices with justification
-  - Performance Concerns: anti-patterns identified in the code
-  - Files Committed: test script and endpoint manifest
+  ### Step 5: Results Analysis
+  After k6 completes, extract per-endpoint metrics from tagged data.
+  Analyze patterns: p95 comparisons, dropped iterations, error clustering.
+
+  ### Step 6: MR Report
+  Post using create_merge_request_note with full results:
+  - Title: "Kassandra Performance Report"
+  - Per-Endpoint Results table (p95, p99, error rate, RPS, threshold status)
+  - Throughput Analysis (total requests, dropped iterations)
+  - Baseline Regression results
+  - Observations (plain-English analysis relating metrics to code)
+  - Decisions Made (executor, thresholds, rationale)
+  - Files committed and results generated
 
   ## Edge Cases
   - No API endpoints in diff → "No testable API changes detected"
   - k6 fails → post the error output, never silently fail
   - Review env crashes under load → report as a finding
   - Auth fails in setup() → post error, do not proceed
+  - run_command hangs → committed k6 script serves as deliverable
 
   ## Style Matching
   When existing tests found: match import style, naming, directory structure, group/check patterns, and reuse helpers.
