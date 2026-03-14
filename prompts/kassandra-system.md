@@ -481,21 +481,58 @@ Changed-endpoint scenarios SHOULD run concurrently when possible — this tests 
    - Commit message: `perf: add Kassandra k6 test for MR !{MR_IID}`
    - Branch: the MR's source branch (from `get_merge_request`)
 
-3. **Start the target application** (IMPORTANT: `run_command` waits for ALL child processes. You MUST use `setsid` + `disown` to fully detach, or the command will hang forever):
-   - Read the MANDATORY startup command from AGENTS.md — use it EXACTLY as written, character for character
-   - Calliope Books: `bash -c 'cd demos/calliope-books && setsid node app.js > /tmp/calliope.log 2>&1 & disown; sleep 2; exit 0'`
-   - Midas Bank: `bash -c 'cd demos/midas-bank && setsid python3.12 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 & disown; sleep 2; exit 0'`
+3. **Execute the test using a SINGLE `run_command` call** that starts the app, runs k6, and kills the app — all in one shell invocation.
 
-4. **Verify the app is running:** `curl -sf {BASE_URL}/api/health` — if this fails, check the log (`cat /tmp/calliope.log` or `/tmp/midas.log`) and report the error.
+   **CRITICAL: Why a single command?** The `run_command` tool hangs if ANY child process survives after the shell exits. Separate `run_command` calls for "start app" and "run k6" will cause the first call to hang forever. The solution is to do EVERYTHING in one `run_command`:
 
-5. **Verify k6 is installed:** `k6 version`
+   **For Calliope Books (Node.js on port 3000):**
+   ```
+   bash -c '
+     set -e
+     cd demos/calliope-books
+     npm install --silent 2>/dev/null
+     node app.js > /tmp/calliope.log 2>&1 &
+     APP_PID=$!
+     sleep 3
+     curl -sf http://localhost:3000/api/health || { echo "App failed to start:"; cat /tmp/calliope.log; kill $APP_PID 2>/dev/null; exit 1; }
+     echo "App running on PID $APP_PID"
+     cd ../..
+     mkdir -p k6/kassandra/results
+     k6 run {script_path} 2>&1; K6_EXIT=$?
+     kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
+     exit $K6_EXIT
+   '
+   ```
 
-6. **Run the k6 test:**
-   - Validate syntax: `k6 inspect {script_path}`
-   - Run full test: `k6 run {script_path}` using `run_command`
-   - Capture results from stdout
+   **For Midas Bank (Python/uvicorn on port 8000):**
+   ```
+   bash -c '
+     set -e
+     cd demos/midas-bank
+     pip3 install -r requirements.txt --quiet 2>/dev/null
+     python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > /tmp/midas.log 2>&1 &
+     APP_PID=$!
+     sleep 3
+     curl -sf http://localhost:8000/api/health || { echo "App failed to start:"; cat /tmp/midas.log; kill $APP_PID 2>/dev/null; exit 1; }
+     echo "App running on PID $APP_PID"
+     cd ../..
+     mkdir -p k6/kassandra/results
+     k6 run {script_path} 2>&1; K6_EXIT=$?
+     kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
+     exit $K6_EXIT
+   '
+   ```
 
-7. **If k6 fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
+   **Adapt the pattern for other apps** by reading the startup command from AGENTS.md. The structure is always:
+   1. Start app in background (`&`), capture PID
+   2. Wait for health check
+   3. Run k6
+   4. Kill app, wait for cleanup
+   5. Exit with k6's exit code
+
+   **All in one `run_command` call. NEVER split app startup and k6 execution into separate `run_command` calls.**
+
+4. **If k6 or the app fails:** Post the error to the MR. Do NOT silently fail. Include the error output and suggest fixes.
 
 **IMPORTANT:** The `handleSummary()` in your generated script MUST output results to `k6/kassandra/results/` directory:
 ```javascript
@@ -732,8 +769,9 @@ Available tools and when to use them:
 **Tool usage rules:**
 - Read before writing — always check what exists
 - Use `create_commit` to commit k6 scripts to the MR branch (for visibility and auditability)
-- Use `run_command` to start the app and execute k6 tests
+- Use a SINGLE `run_command` call that starts app + runs k6 + kills app (never separate calls)
 - Run `k6 inspect {script}` before `k6 run` to catch syntax errors
 - Log all tool calls and results for auditability
 - If a tool fails, report the error — never silently skip
 - If `run_command` hangs, the agent session will time out — the committed k6 script still serves as the deliverable
+- NEVER split app startup and k6 execution into separate `run_command` calls — this causes hangs
