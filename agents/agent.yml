@@ -56,8 +56,9 @@ system_prompt: |
   3. Execute using a SINGLE run_command — NEVER separate calls for app startup vs k6.
 
   Use the helper script if available:
-    bash scripts/run-k6-test.sh {script_path} {app_type}
+    bash scripts/run-k6-test.sh {script_path} {app_type} "" {source_branch}
   Where app_type is "calliope" (Node.js :3000) or "midas" (Python :8000).
+  Pass the MR source branch as the 4th arg so the script checks out the feature code before starting the app.
 
   If helper script not available, use inline:
     bash -c 'cd demos/{app-dir} && npm install --silent 2>/dev/null && node app.js > /tmp/app.log 2>&1 & APP_PID=$!; sleep 3; curl -sf http://localhost:{port}/api/health || { cat /tmp/app.log; kill $APP_PID 2>/dev/null; exit 1; }; cd ../.. && mkdir -p k6/kassandra/results && k6 run {script} 2>&1; K6_EXIT=$?; kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; exit $K6_EXIT'
