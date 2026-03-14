@@ -3,26 +3,31 @@ stages:
   - test
   - review
 
-validate-k6-scripts:
-  stage: validate
-  image: grafana/k6:latest
-  script:
-    - k6 version
-    - for f in tests/k6/*.js samples/expected/*.js; do
-        echo "Inspecting $f...";
-        k6 inspect "$f" || exit 1;
-      done
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
 lint-python:
   stage: validate
   image: python:3.12-slim
   script:
     - pip install ruff
-    - ruff check simulator/
-  allow_failure: true
+    - ruff check simulator/ demos/midas-bank/
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+validate-k6-scripts:
+  stage: validate
+  image: grafana/k6:latest
+  script:
+    - k6 version
+    - |
+      SCRIPTS=$(find k6/ -name "*.js" -type f 2>/dev/null | sort)
+      if [ -z "$SCRIPTS" ]; then
+        echo "No k6 scripts to validate"
+        exit 0
+      fi
+      for f in $SCRIPTS; do
+        echo "Inspecting $f..."
+        k6 inspect "$f" || exit 1
+      done
   rules:
     - if: $CI_MERGE_REQUEST_IID
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -33,16 +38,13 @@ kassandra-perf-test:
   variables:
     DEBIAN_FRONTEND: noninteractive
   before_script:
-    # Install k6 binary
     - curl -sL https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-amd64.tar.gz | tar xz
     - mv k6-v0.50.0-linux-amd64/k6 /usr/local/bin/
     - k6 version
-    # Install Python (for Midas Bank if needed)
     - apt-get update -qq && apt-get install -y -qq python3 python3-pip python3-venv > /dev/null 2>&1
   script:
     - mkdir -p k6/kassandra/results
     - |
-      # Find all Kassandra test scripts on this branch
       SCRIPTS=$(find k6/kassandra -name "mr-*.js" -type f 2>/dev/null | sort)
       if [ -z "$SCRIPTS" ]; then
         echo "No Kassandra test scripts found — skipping"
@@ -55,10 +57,8 @@ kassandra-perf-test:
         echo "  Running: $script"
         echo "════════════════════════════════════════════════════════"
 
-        # Validate script syntax first
         k6 inspect "$script" || { echo "FAILED: $script has syntax errors"; continue; }
 
-        # Detect target app from BASE_URL in script
         APP_PID=""
         if grep -q "localhost:3000\|__ENV.BASE_URL.*3000" "$script"; then
           echo "→ Detected target: Calliope Books (Node.js :3000)"
@@ -84,12 +84,10 @@ kassandra-perf-test:
           echo "⚠ Could not detect target app — running k6 anyway"
         fi
 
-        # Run k6 test
         echo ""
         echo "→ Executing k6 test..."
         k6 run "$script" || echo "⚠ k6 exited with non-zero status (threshold breach or error)"
 
-        # Cleanup: stop the app for next script
         if [ -n "$APP_PID" ]; then
           kill "$APP_PID" 2>/dev/null || true
           wait "$APP_PID" 2>/dev/null || true

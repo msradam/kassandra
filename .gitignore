@@ -1,16 +1,27 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
 *.egg-info/
 dist/
 build/
+.ruff_cache/
+
+# Node
 node_modules/
+
+# OS
 .DS_Store
 
-simulator/output/
-demos/calliope-books/node_modules/
-demos/midas-bank/*.db
+# SQLite (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
 
+# Secrets
 key.yml
+
+# Generated outputs
+simulator/output/
+k6/kassandra/results/
 summary.json
-.ruff_cache/
