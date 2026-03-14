@@ -13,9 +13,17 @@
 
 set -euo pipefail
 
-SCRIPT_PATH="${1:?Usage: run-k6-test.sh <script-path> <app-type> [base-url]}"
-APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url]}"
+SCRIPT_PATH="${1:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch]}"
+APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch]}"
 BASE_URL="${3:-}"
+BRANCH="${4:-}"
+
+# ── Step 0: Checkout MR source branch if specified ──
+if [ -n "$BRANCH" ]; then
+  echo "Checking out branch: $BRANCH"
+  git fetch origin "$BRANCH" 2>/dev/null || git fetch 2>/dev/null || true
+  git checkout "$BRANCH" 2>/dev/null || git checkout "origin/$BRANCH" 2>/dev/null || echo "WARNING: Could not checkout $BRANCH"
+fi
 
 APP_PID=""
 
