@@ -19,11 +19,20 @@ from .tools import TOOLS, ANTHROPIC_TOOLS, execute_tool, set_mr_context
 
 
 def load_system_prompt() -> str:
-    path = Path(config.SYSTEM_PROMPT_PATH)
+    """Load system prompt from agents/agent.yml."""
+    import yaml
+
+    path = Path(config.AGENT_YML_PATH)
     if not path.exists():
-        print(f"Error: System prompt not found at {path}")
+        print(f"Error: Agent config not found at {path}")
         sys.exit(1)
-    return path.read_text(encoding="utf-8")
+    with open(path, encoding="utf-8") as f:
+        agent_config = yaml.safe_load(f)
+    prompt = agent_config.get("system_prompt", "")
+    if not prompt:
+        print("Error: No system_prompt found in agent.yml")
+        sys.exit(1)
+    return prompt
 
 
 def load_sample(sample_name: str) -> dict:

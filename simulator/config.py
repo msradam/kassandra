@@ -10,8 +10,9 @@ LOCAL_MODEL = os.getenv("KASSANDRA_LOCAL_MODEL", "default")
 ANTHROPIC_MODEL = os.getenv("KASSANDRA_ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SYSTEM_PROMPT_PATH = os.path.join(REPO_ROOT, "prompts", "kassandra-system.md")
+AGENT_YML_PATH = os.path.join(REPO_ROOT, "agents", "agent.yml")
 OUTPUT_DIR = os.path.join(REPO_ROOT, "simulator", "output")
+SAMPLES_DIR = os.path.join(REPO_ROOT, "simulator", "samples")
 
 MAX_TOOL_ROUNDS = 20
 K6_TIMEOUT = 300

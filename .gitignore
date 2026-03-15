@@ -23,5 +23,6 @@ key.yml
 
 # Generated outputs
 simulator/output/
-k6/kassandra/results/
+k6/kassandra/
+demos/*/k6/kassandra/
 summary.json

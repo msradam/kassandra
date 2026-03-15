@@ -118,6 +118,62 @@ class DepositRequest(BaseModel):
     description: str = ""
 
 
+# ── Response Models ──
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    email: str
+
+
+class AuthResponse(BaseModel):
+    user: UserOut
+    token: str
+
+
+class AccountOut(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    balance: float
+    currency: str
+    created_at: str | None = None
+
+
+class AccountListResponse(BaseModel):
+    accounts: list[AccountOut]
+
+
+class TransactionOut(BaseModel):
+    id: int
+    from_account_id: int | None = None
+    to_account_id: int | None = None
+    amount: float
+    type: str
+    description: str | None = None
+    created_at: str | None = None
+
+
+class TransactionListResponse(BaseModel):
+    transactions: list[TransactionOut]
+    total: int
+    limit: int = 50
+    offset: int = 0
+
+
+class SpendingSummaryOut(BaseModel):
+    account_id: int
+    total_spent: float
+    transaction_count: int
+    transactions: list[dict]
+
+
+class HealthResponse(BaseModel):
+    status: str
+    app: str
+
+
 # ── Auth ──
 
 
@@ -130,7 +186,7 @@ def get_current_user(authorization: str = Header(None)):
         raise HTTPException(401, "Invalid token")
 
 
-@app.post("/api/auth/register", status_code=201)
+@app.post("/api/auth/register", status_code=201, response_model=AuthResponse)
 def register(req: RegisterRequest, db=Depends(get_db)):
     pw_hash = hashlib.sha256(req.password.encode()).hexdigest()
     try:
@@ -154,7 +210,7 @@ def register(req: RegisterRequest, db=Depends(get_db)):
         raise HTTPException(409, "Username or email already exists")
 
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", response_model=AuthResponse)
 def login(req: LoginRequest, db=Depends(get_db)):
     pw_hash = hashlib.sha256(req.password.encode()).hexdigest()
     row = db.execute(
@@ -172,7 +228,7 @@ def login(req: LoginRequest, db=Depends(get_db)):
 # ── Accounts ──
 
 
-@app.get("/api/accounts")
+@app.get("/api/accounts", response_model=AccountListResponse)
 def list_accounts(user=Depends(get_current_user), db=Depends(get_db)):
     rows = db.execute(
         "SELECT * FROM accounts WHERE user_id = ?", (user["id"],)
@@ -180,7 +236,7 @@ def list_accounts(user=Depends(get_current_user), db=Depends(get_db)):
     return {"accounts": [dict(r) for r in rows]}
 
 
-@app.get("/api/accounts/{account_id}")
+@app.get("/api/accounts/{account_id}", response_model=AccountOut)
 def get_account(account_id: int, user=Depends(get_current_user), db=Depends(get_db)):
     row = db.execute(
         "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (account_id, user["id"])
@@ -190,7 +246,7 @@ def get_account(account_id: int, user=Depends(get_current_user), db=Depends(get_
     return dict(row)
 
 
-@app.post("/api/accounts", status_code=201)
+@app.post("/api/accounts", status_code=201, response_model=AccountOut)
 def create_account(req: AccountCreate, user=Depends(get_current_user), db=Depends(get_db)):
     cur = db.execute(
         "INSERT INTO accounts (user_id, name, balance, currency) VALUES (?, ?, 0, ?)",
@@ -204,7 +260,7 @@ def create_account(req: AccountCreate, user=Depends(get_current_user), db=Depend
 # ── Transactions ──
 
 
-@app.get("/api/transactions")
+@app.get("/api/transactions", response_model=TransactionListResponse)
 def list_transactions(
     account_id: int = None,
     limit: int = 50,
@@ -236,7 +292,7 @@ def list_transactions(
     return {"transactions": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
-@app.post("/api/transactions/transfer", status_code=201)
+@app.post("/api/transactions/transfer", status_code=201, response_model=TransactionOut)
 def transfer(req: TransferRequest, user=Depends(get_current_user), db=Depends(get_db)):
     if req.amount <= 0:
         raise HTTPException(400, "Amount must be positive")
@@ -261,7 +317,7 @@ def transfer(req: TransferRequest, user=Depends(get_current_user), db=Depends(ge
     return dict(tx)
 
 
-@app.post("/api/transactions/deposit", status_code=201)
+@app.post("/api/transactions/deposit", status_code=201, response_model=TransactionOut)
 def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_db)):
     if req.amount <= 0:
         raise HTTPException(400, "Amount must be positive")
@@ -283,6 +339,6 @@ def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_
 # ── Health ──
 
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 def health():
     return {"status": "ok", "app": "midas-bank"}

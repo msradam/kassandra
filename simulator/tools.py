@@ -124,6 +124,26 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "create_commit",
+            "description": "Create a git commit on the MR source branch with the specified files and message.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch": {"type": "string", "description": "Branch name"},
+                    "commit_message": {"type": "string", "description": "Commit message"},
+                    "actions": {
+                        "type": "array",
+                        "description": "List of file actions",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["commit_message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_k6_from_openapi",
             "description": "Generate a k6 test skeleton from the project's OpenAPI spec. Returns a base script you can customize.",
             "parameters": {
@@ -183,6 +203,7 @@ def execute_tool(name: str, arguments: dict) -> str:
         "create_merge_request_note": _create_mr_note,
         "list_merge_request_diffs": _list_mr_diffs,
         "get_merge_request": _get_mr,
+        "create_commit": _create_commit,
         "generate_k6_from_openapi": _generate_k6_from_openapi,
         "validate_k6_script": _validate_k6_script,
     }
@@ -203,10 +224,13 @@ def _project_root() -> Path:
 
 
 def _read_file(path: str) -> str:
-    # Try project-relative first, then repo-relative
+    # Try project-relative first, then repo-relative (AGENTS.md is in project dir)
     full_path = _project_root() / path
     if not full_path.exists():
         full_path = Path(config.REPO_ROOT) / path
+    if not full_path.exists():
+        # Also try common paths like demos/{project}/AGENTS.md
+        full_path = Path(config.REPO_ROOT) / config.PROJECT_DIR / path
     if not full_path.exists():
         return f"Error: File not found: {path}"
     if not full_path.is_file():
@@ -280,13 +304,14 @@ def _run_command(command: str) -> str:
         if b in command:
             return f"Error: Blocked dangerous command pattern: {b}"
     try:
+        # Run from repo root (matching GitLab runner behavior)
         result = subprocess.run(
             command,
             shell=True,
             capture_output=True,
             text=True,
             timeout=config.K6_TIMEOUT,
-            cwd=str(_project_root()),
+            cwd=config.REPO_ROOT,
         )
         output = ""
         if result.stdout:
@@ -301,7 +326,8 @@ def _run_command(command: str) -> str:
 
 
 def _create_file(path: str, content: str) -> str:
-    full_path = _project_root() / path
+    # Write relative to repo root (k6 scripts go to k6/kassandra/)
+    full_path = Path(config.REPO_ROOT) / path
     try:
         full_path.resolve().relative_to(Path(config.REPO_ROOT).resolve())
     except ValueError:
@@ -329,6 +355,11 @@ def _create_mr_note(body: str) -> str:
     print(body)
     print("=" * 60 + "\n")
     return f"MR note posted successfully. Saved to: {output_path.relative_to(Path(config.REPO_ROOT))}"
+
+
+def _create_commit(commit_message: str, branch: str = "", actions: list = None, **kwargs) -> str:
+    """Simulate create_commit — locally this is a no-op (files already written by create_file_with_contents)."""
+    return f"Commit created (simulated): {commit_message}"
 
 
 def _list_mr_diffs() -> str:
