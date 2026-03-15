@@ -36,9 +36,9 @@ export const options = {
     },
   },
   thresholds: {
-    'http_req_duration{scenario:normal_transfers}': ['p95<2000'], // SLO: p95 < 2000ms for transfers
+    'http_req_duration{scenario:normal_transfers}': ['p(95)<2000'], // SLO: p95 < 2000ms for transfers
     'http_req_failed{scenario:normal_transfers}': ['rate<0.01'], // SLO: error rate < 1%
-    'transfer_duration': ['p95<2000'],
+    'transfer_duration': ['p(95)<2000'],
     'rate_limit_errors': ['rate>0'], // We EXPECT rate limit errors in the rate_limit_test scenario
   },
 };
