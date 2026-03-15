@@ -157,12 +157,18 @@ export function normalTransfers(data) {
 
   const success = check(res, {
     'transfer status is 201': (r) => r.status === 201,
-    'transfer has transaction id': (r) => r.json('id') !== undefined,
+    'transfer has transaction id': (r) => r.status === 201 && r.json('id') !== undefined,
     'transfer response time < 2000ms': (r) => r.timings.duration < 2000,
   });
 
   if (res.status === 201) {
     transferDuration.add(res.timings.duration);
+  } else if (res.status === 429) {
+    // Rate limited even in normal scenario - log for debugging
+    console.log(`Normal transfer rate limited at iteration ${__ITER}`);
+  } else {
+    // Other error - log for debugging
+    console.log(`Transfer failed with status ${res.status}: ${res.body}`);
   }
 
   // Sleep to stay within rate limits (10 transfers/min = 1 transfer per 6 seconds)
@@ -249,41 +255,47 @@ export function handleSummary(data) {
   summary += '  Performance Test Summary: Transfer Rate Limiting (MR !36)\n';
   summary += '================================================================================\n\n';
 
-  // Scenarios
-  for (const [name, scenario] of Object.entries(data.metrics.scenarios?.values || {})) {
-    summary += `Scenario: ${name}\n`;
-  }
-  summary += '\n';
-
   // Key metrics
   const metrics = data.metrics;
-  if (metrics.http_req_duration) {
+  if (metrics.http_req_duration && metrics.http_req_duration.values) {
     summary += `HTTP Request Duration:\n`;
-    summary += `  avg: ${metrics.http_req_duration.values.avg.toFixed(2)}ms\n`;
-    summary += `  p95: ${metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
-    summary += `  p99: ${metrics.http_req_duration.values['p(99)'].toFixed(2)}ms\n`;
+    if (metrics.http_req_duration.values.avg) {
+      summary += `  avg: ${metrics.http_req_duration.values.avg.toFixed(2)}ms\n`;
+    }
+    if (metrics.http_req_duration.values['p(95)']) {
+      summary += `  p95: ${metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
+    }
+    if (metrics.http_req_duration.values['p(99)']) {
+      summary += `  p99: ${metrics.http_req_duration.values['p(99)'].toFixed(2)}ms\n`;
+    }
   }
 
-  if (metrics.transfer_duration) {
-    summary += `\nTransfer Duration:\n`;
-    summary += `  avg: ${metrics.transfer_duration.values.avg.toFixed(2)}ms\n`;
-    summary += `  p95: ${metrics.transfer_duration.values['p(95)'].toFixed(2)}ms\n`;
-    summary += `  p99: ${metrics.transfer_duration.values['p(99)'].toFixed(2)}ms\n`;
+  if (metrics.transfer_duration && metrics.transfer_duration.values) {
+    summary += `\nTransfer Duration (successful transfers):\n`;
+    if (metrics.transfer_duration.values.avg) {
+      summary += `  avg: ${metrics.transfer_duration.values.avg.toFixed(2)}ms\n`;
+    }
+    if (metrics.transfer_duration.values['p(95)']) {
+      summary += `  p95: ${metrics.transfer_duration.values['p(95)'].toFixed(2)}ms\n`;
+    }
+    if (metrics.transfer_duration.values['p(99)']) {
+      summary += `  p99: ${metrics.transfer_duration.values['p(99)'].toFixed(2)}ms\n`;
+    }
   }
 
-  if (metrics.http_req_failed) {
+  if (metrics.http_req_failed && metrics.http_req_failed.values) {
     const failRate = (metrics.http_req_failed.values.rate * 100).toFixed(2);
     summary += `\nHTTP Request Failure Rate: ${failRate}%\n`;
   }
 
-  if (metrics.rate_limit_errors) {
+  if (metrics.rate_limit_errors && metrics.rate_limit_errors.values) {
     const rateLimitRate = (metrics.rate_limit_errors.values.rate * 100).toFixed(2);
-    summary += `Rate Limit Errors: ${rateLimitRate}%\n`;
+    summary += `Rate Limit Errors (expected in burst test): ${rateLimitRate}%\n`;
   }
 
-  if (metrics.self_transfer_errors) {
+  if (metrics.self_transfer_errors && metrics.self_transfer_errors.values) {
     const selfTransferRate = (metrics.self_transfer_errors.values.rate * 100).toFixed(2);
-    summary += `Self-Transfer Validation Errors: ${selfTransferRate}%\n`;
+    summary += `Self-Transfer Validation (should be 100%): ${selfTransferRate}%\n`;
   }
 
   summary += '\n';
