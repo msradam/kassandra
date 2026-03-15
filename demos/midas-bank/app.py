@@ -336,6 +336,32 @@ def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_
     return dict(tx)
 
 
+# ── Spending Summary ──
+
+
+@app.get("/api/accounts/{account_id}/spending", response_model=SpendingSummaryOut)
+def spending_summary(account_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    acct = db.execute(
+        "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (account_id, user["id"])
+    ).fetchone()
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    rows = db.execute(
+        "SELECT * FROM transactions WHERE from_account_id = ? ORDER BY created_at DESC LIMIT 100",
+        (account_id,),
+    ).fetchall()
+    total = sum(r["amount"] for r in rows)
+    return {
+        "account_id": account_id,
+        "total_spent": total,
+        "transaction_count": len(rows),
+        "transactions": [
+            {"id": r["id"], "amount": r["amount"], "description": r["description"], "created_at": r["created_at"]}
+            for r in rows
+        ],
+    }
+
+
 # ── Health ──
 
 

@@ -381,6 +381,54 @@
         }
       }
     },
+    "/api/accounts/{account_id}/spending": {
+      "get": {
+        "summary": "Spending Summary",
+        "operationId": "spending_summary_api_accounts__account_id__spending_get",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Account Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingSummaryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -591,6 +639,38 @@
           "password"
         ],
         "title": "RegisterRequest"
+      },
+      "SpendingSummaryOut": {
+        "properties": {
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id"
+          },
+          "total_spent": {
+            "type": "number",
+            "title": "Total Spent"
+          },
+          "transaction_count": {
+            "type": "integer",
+            "title": "Transaction Count"
+          },
+          "transactions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "total_spent",
+          "transaction_count",
+          "transactions"
+        ],
+        "title": "SpendingSummaryOut"
       },
       "TransactionListResponse": {
         "properties": {
