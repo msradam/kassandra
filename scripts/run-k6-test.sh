@@ -57,7 +57,8 @@ case "$APP_TYPE" in
     LOG_FILE="/tmp/midas.log"
     echo "Starting Midas Bank..."
     cd demos/midas-bank
-    pip3 install -r requirements.txt --quiet 2>/dev/null || python3 -m pip install -r requirements.txt --quiet 2>/dev/null || true
+    pip3 install --break-system-packages -r requirements.txt --quiet 2>/dev/null || pip install --break-system-packages -r requirements.txt --quiet 2>/dev/null || python3 -m pip install --break-system-packages -r requirements.txt --quiet 2>/dev/null || echo "WARNING: pip install failed"
+    python3 -c "import fastapi; print(f'FastAPI {fastapi.__version__}')" 2>/dev/null || { echo "FATAL: FastAPI not installed"; exit 1; }
     python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
     APP_PID=$!
     cd ../..
