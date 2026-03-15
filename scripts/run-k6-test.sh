@@ -56,10 +56,14 @@ case "$APP_TYPE" in
     HEALTH_URL="$BASE_URL/api/health"
     LOG_FILE="/tmp/midas.log"
     echo "Starting Midas Bank..."
+    # Runner has python3 (3.6) and python3.12 — FastAPI requires 3.8+
+    PYTHON=$(command -v python3.12 || command -v python3)
+    PIP="$PYTHON -m pip"
+    echo "Using Python: $PYTHON ($($PYTHON --version 2>&1))"
     cd demos/midas-bank
-    pip3 install --break-system-packages -r requirements.txt --quiet 2>/dev/null || pip install --break-system-packages -r requirements.txt --quiet 2>/dev/null || python3 -m pip install --break-system-packages -r requirements.txt --quiet 2>/dev/null || echo "WARNING: pip install failed"
-    python3 -c "import fastapi; print(f'FastAPI {fastapi.__version__}')" 2>/dev/null || { echo "FATAL: FastAPI not installed"; exit 1; }
-    python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
+    $PIP install --break-system-packages -r requirements.txt --quiet 2>/dev/null || echo "WARNING: pip install failed"
+    $PYTHON -c "import fastapi; print(f'FastAPI {fastapi.__version__}')" 2>/dev/null || { echo "FATAL: FastAPI not installed"; exit 1; }
+    $PYTHON -m uvicorn app:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
     APP_PID=$!
     cd ../..
     ;;
