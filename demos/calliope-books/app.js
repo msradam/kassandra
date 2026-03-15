@@ -273,3 +273,41 @@ initDb().then(() => {
     console.log(`Calliope Books running on :${PORT}`);
   });
 });
+
+// ── Slow search endpoint (deliberately unoptimized for perf testing) ──
+app.get('/api/books/search', (req, res) => {
+  const { q, limit = 20, offset = 0 } = req.query;
+  if (!q) return res.status(400).json({ error: 'q parameter required' });
+
+  const results = all(\`
+    SELECT b.*,
+           (SELECT COUNT(*) FROM reviews r WHERE r.book_id = b.id) as review_count,
+           (SELECT ROUND(AVG(r2.rating), 2) FROM reviews r2 WHERE r2.book_id = b.id) as avg_rating,
+           (SELECT GROUP_CONCAT(r3.comment, ' | ')
+            FROM reviews r3 WHERE r3.book_id = b.id AND r3.comment LIKE ?) as matching_reviews
+    FROM books b
+    WHERE b.title LIKE ? OR b.author LIKE ? OR b.genre LIKE ?
+       OR b.id IN (SELECT r4.book_id FROM reviews r4 WHERE r4.comment LIKE ?)
+    ORDER BY review_count DESC, avg_rating DESC
+    LIMIT ? OFFSET ?
+  \`, [\`%\${q}%\`, \`%\${q}%\`, \`%\${q}%\`, \`%\${q}%\`, \`%\${q}%\`, Number(limit), Number(offset)]);
+
+  const scored = results.map(book => {
+    let score = 0;
+    const ql = q.toLowerCase();
+    if (book.title && book.title.toLowerCase().includes(ql)) score += 10;
+    if (book.author && book.author.toLowerCase().includes(ql)) score += 5;
+    if (book.matching_reviews) score += 2;
+    const reviews = all(
+      'SELECT r.*, u.username FROM reviews r JOIN users u ON r.user_id = u.id WHERE r.book_id = ?',
+      [book.id]
+    );
+    return { ...book, relevance_score: score, review_details: reviews };
+  });
+
+  scored.sort((a, b) => b.relevance_score - a.relevance_score);
+
+  setTimeout(() => {
+    res.json({ results: scored, query: q, count: scored.length });
+  }, 1200);
+});
