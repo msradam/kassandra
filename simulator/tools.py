@@ -2,6 +2,7 @@
 Local tool implementations that mirror GitLab Duo Agent Platform tools.
 """
 
+import json
 import os
 import re
 import subprocess
@@ -9,6 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
+
+# GraphRAG integration — lazy-loaded when openapi.json is requested
+_graphrag_context = None
 
 TOOLS = [
     {
@@ -189,8 +193,9 @@ _mr_context = {}
 
 
 def set_mr_context(context: dict):
-    global _mr_context
+    global _mr_context, _graphrag_context
     _mr_context = context
+    _graphrag_context = None  # Reset GraphRAG cache for new MR
 
 
 def execute_tool(name: str, arguments: dict) -> str:
@@ -224,6 +229,12 @@ def _project_root() -> Path:
 
 
 def _read_file(path: str) -> str:
+    # GraphRAG interception: when agent reads openapi.json, return graph-retrieved context
+    if path.endswith("openapi.json") and _mr_context.get("diff"):
+        context = _get_graphrag_context(path)
+        if context:
+            return context
+
     # Try project-relative first, then repo-relative (AGENTS.md is in project dir)
     full_path = _project_root() / path
     if not full_path.exists():
@@ -242,6 +253,71 @@ def _read_file(path: str) -> str:
         return content
     except Exception as e:
         return f"Error reading {path}: {e}"
+
+
+def _get_graphrag_context(spec_path: str) -> str | None:
+    """Build graph from spec, retrieve context relevant to MR diff."""
+    global _graphrag_context
+    if _graphrag_context is not None:
+        return _graphrag_context
+
+    try:
+        from graphrag.builder import OpenAPIGraph
+        from graphrag.retriever import SubgraphRetriever
+    except ImportError:
+        return None
+
+    # Find the spec file
+    full_path = _project_root() / spec_path
+    if not full_path.exists():
+        full_path = Path(config.REPO_ROOT) / spec_path
+    if not full_path.exists():
+        full_path = Path(config.REPO_ROOT) / config.PROJECT_DIR / spec_path
+    if not full_path.exists():
+        return None
+
+    try:
+        with open(full_path) as f:
+            spec = json.load(f)
+
+        graph = OpenAPIGraph.from_spec(spec)
+        retriever = SubgraphRetriever(graph)
+
+        diff = _mr_context.get("diff", "")
+        endpoints = retriever.endpoints_from_diff(diff)
+
+        if not endpoints:
+            # Fallback: return full spec if no endpoints matched from diff
+            print("  [GRAPHRAG] No endpoints matched from diff, returning full spec")
+            return None
+
+        context = retriever.for_endpoints(endpoints)
+        text = context.to_text()
+
+        # Also include the full spec as JSON for endpoints the graph found
+        context_dict = context.to_dict()
+
+        full_spec_chars = len(json.dumps(spec, indent=2))
+        context_chars = len(text)
+        ratio = (context_chars / full_spec_chars * 100) if full_spec_chars else 0
+
+        header = (
+            f"# OpenAPI Context (GraphRAG-retrieved)\n"
+            f"# Matched endpoints: {', '.join(endpoints)}\n"
+            f"# Context size: {context_chars} chars ({ratio:.0f}% of full {full_spec_chars}-char spec)\n\n"
+        )
+
+        _graphrag_context = header + text
+
+        print(f"  [GRAPHRAG] Built graph: {graph.stats()}")
+        print(f"  [GRAPHRAG] Matched endpoints: {endpoints}")
+        print(f"  [GRAPHRAG] Context: {context_chars} chars ({ratio:.0f}% of full spec)")
+
+        return _graphrag_context
+
+    except Exception as e:
+        print(f"  [GRAPHRAG] Error: {e}")
+        return None
 
 
 def _find_files(pattern: str) -> str:
