@@ -292,10 +292,29 @@ def list_transactions(
     return {"transactions": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
+_transfer_rate_limits: dict[int, list[float]] = {}
+
+
+def _check_transfer_rate_limit(user_id: int, max_per_minute: int = 10):
+    """In-memory sliding window rate limiter for transfers."""
+    import time
+
+    now = time.time()
+    history = _transfer_rate_limits.get(user_id, [])
+    history = [t for t in history if now - t < 60]
+    if len(history) >= max_per_minute:
+        raise HTTPException(429, "Transfer rate limit exceeded. Max 10 transfers per minute.")
+    history.append(now)
+    _transfer_rate_limits[user_id] = history
+
+
 @app.post("/api/transactions/transfer", status_code=201, response_model=TransactionOut)
 def transfer(req: TransferRequest, user=Depends(get_current_user), db=Depends(get_db)):
+    _check_transfer_rate_limit(user["id"])
     if req.amount <= 0:
         raise HTTPException(400, "Amount must be positive")
+    if req.from_account_id == req.to_account_id:
+        raise HTTPException(400, "Cannot transfer to the same account")
     src = db.execute(
         "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (req.from_account_id, user["id"])
     ).fetchone()
