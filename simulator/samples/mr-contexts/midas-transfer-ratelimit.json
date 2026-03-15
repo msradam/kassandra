@@ -1,0 +1,8 @@
+{
+  "iid": 100,
+  "title": "feat: add rate limiting to transfer endpoint",
+  "description": "Adds rate limiting to POST /api/transactions/transfer to prevent abuse. Also adds account balance validation to GET /api/accounts/{account_id}.",
+  "source_branch": "feature/transfer-ratelimit",
+  "target_branch": "main",
+  "author": "developer"
+}
