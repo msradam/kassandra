@@ -4,7 +4,6 @@
 - Application: Midas Bank (Python, FastAPI, sqlite3)
 - Source: demos/midas-bank/
 - Test framework: k6 (JavaScript/ES modules)
-- OpenAPI spec: Available at http://localhost:8000/openapi.json when app is running
 
 ## Performance Testing (Kassandra)
 
@@ -12,19 +11,14 @@
 The execution command below handles EVERYTHING — app startup, branch checkout, health check, k6 run, cleanup. You MUST use it exactly as written. Do NOT build your own startup command.
 
 1. Read the MR diff to identify new/changed endpoints
-2. Start the app and fetch OpenAPI spec to understand exact schemas:
-   ```
-   run_command: bash -c 'cd demos/midas-bank && pip3 install -r requirements.txt -q 2>/dev/null; python3 -m uvicorn app:app --port 8000 &>/tmp/midas.log & sleep 3; curl -s http://localhost:8000/openapi.json; kill %1 2>/dev/null; wait 2>/dev/null'
-   ```
-   Use the OpenAPI JSON output to understand request/response schemas for your k6 script.
-3. Write k6 test script to k6/kassandra/mr-{MR_IID}-{slug}.js
-4. Commit the script to the MR branch
-5. Execute:
+2. Write k6 test script to k6/kassandra/mr-{MR_IID}-{slug}.js
+3. Commit the script to the MR branch
+4. Execute:
    ```
    run_command: bash scripts/run-k6-test.sh k6/kassandra/mr-{MR_IID}-{slug}.js midas "" {source_branch}
    ```
    This checks out the source branch, starts the app, runs k6, kills the app — all in one process.
-6. Analyze k6 output and post results to MR
+5. Analyze k6 output and post results to MR
 
 ### SLOs
 - Default: p95 < 1500ms, error rate < 1%
@@ -36,6 +30,14 @@ The execution command below handles EVERYTHING — app startup, branch checkout,
 ### Auth
 - Login: POST /api/auth/login with {"email": "banker@midas.dev", "password": "midas123"}
 - Token type: JWT Bearer → Authorization: Bearer {token}
+
+### API Endpoints
+- POST /api/auth/register — register user (username, email, password)
+- POST /api/auth/login — login (email, password)
+- GET /api/accounts — list user's accounts (auth)
+- POST /api/accounts — create account (auth, name, type: checking/savings)
+- POST /api/accounts/{id}/transfer — transfer funds (auth, to_account_id, amount, type)
+- GET /api/accounts/{id}/transactions — transaction history (auth)
 
 ### Excluded Paths
 - /api/health, /docs, /redoc, /openapi.json
