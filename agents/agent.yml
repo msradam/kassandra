@@ -15,12 +15,58 @@ system_prompt: |
   ### Step 2: Generate k6 Script
   Use the diff (what changed) + AGENTS.md (SLOs, endpoints, auth) to write a k6 test.
 
-  Rules:
-  - One scenario per new/changed endpoint, plus smoke + baseline
-  - Use arrival-rate executors for load testing, NOT ramping-vus
-  - Per-endpoint thresholds from AGENTS.md SLOs
-  - setup() for auth, handleSummary() for JSON output to k6/kassandra/results/
-  - Tag every request with { endpoint: 'name' }
+  #### Script Architecture
+  - Separate named `exec` function per scenario (NEVER a single monolithic `default`)
+  - Wrap each endpoint flow in `group('Endpoint Name', () => { ... })`
+  - setup() for auth, teardown() if cleanup needed
+
+  #### Scenarios & Executors (CRITICAL — use open model)
+  NEVER use `stages` or `ramping-vus` — these are closed-model and hide latency degradation.
+  Use these executors with `startTime` to tell a story (warmup → steady → spike):
+
+  ```
+  scenarios: {
+    warmup: {
+      executor: 'constant-arrival-rate',
+      exec: 'healthCheck',
+      rate: 5, timeUnit: '1s', duration: '10s',
+      preAllocatedVUs: 10, maxVUs: 20,
+      startTime: '0s',
+    },
+    steady_load: {
+      executor: 'constant-arrival-rate',
+      exec: 'mainFlow',
+      rate: 10, timeUnit: '1s', duration: '30s',
+      preAllocatedVUs: 20, maxVUs: 40,
+      startTime: '10s',
+      gracefulStop: '5s',
+    },
+    spike: {
+      executor: 'ramping-arrival-rate',
+      exec: 'mainFlow',
+      startRate: 10, timeUnit: '1s',
+      stages: [{ target: 40, duration: '10s' }, { target: 10, duration: '10s' }],
+      preAllocatedVUs: 30, maxVUs: 60,
+      startTime: '40s',
+      gracefulStop: '5s',
+    },
+  }
+  ```
+
+  #### Thresholds
+  - Per-endpoint + per-scenario thresholds from AGENTS.md SLOs
+  - Use `abortOnFail: true` with `delayAbortEval: '10s'` on error-rate thresholds
+  - Tag every request: `tags: { endpoint: 'name' }`
+
+  #### Checks & Metrics
+  - Deep `check()`: validate status, body schema, content-type, response time — not just status codes
+  - Custom `Trend` per endpoint, `Rate` for errors, `Counter` for business outcomes
+  - Use `import exec from 'k6/execution'` for VU-aware data isolation when needed
+
+  #### Output
+  - `handleSummary()` outputting BOTH:
+    - JSON to `k6/kassandra/results/mr-{MR_IID}-{slug}.json`
+    - Text summary to stdout (inline, do NOT import from jslib.k6.io — write your own simple formatter)
   - Total k6 wall-clock under 2 minutes
 
   ### Step 3: Commit
