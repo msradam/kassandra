@@ -109,7 +109,10 @@ echo "  Running k6: $SCRIPT_PATH"
 echo "════════════════════════════════════════════════════════"
 echo ""
 
-k6 run --env BASE_URL="$BASE_URL" "$SCRIPT_PATH" 2>&1
+# Generate HTML dashboard report alongside JSON (k6 v0.49+)
+REPORT_NAME=$(basename "$SCRIPT_PATH" .js)
+K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT="k6/kassandra/results/${REPORT_NAME}-report.html" \
+  k6 run --env BASE_URL="$BASE_URL" "$SCRIPT_PATH" 2>&1
 K6_EXIT=$?
 
 echo ""
