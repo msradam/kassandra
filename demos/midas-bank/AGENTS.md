@@ -39,5 +39,41 @@ The execution command below handles EVERYTHING — app startup, branch checkout,
 ### Test Conventions
 - Directory: k6/kassandra/
 - Naming: mr-{MR_IID}-{slug}.js
-- Include handleSummary() for JSON output to k6/kassandra/results/
-- Tag requests with endpoint name
+- Tag requests with endpoint name: `tags: { endpoint: 'name' }`
+
+### k6 Script Rules (MUST follow)
+
+#### FORBIDDEN IMPORTS — will crash k6 (CI runner has no internet)
+NEVER import from URLs. Only import from k6 built-ins: `k6/http`, `k6`, `k6/metrics`, `k6/execution`, `k6/encoding`.
+
+#### Executors — use open model only
+NEVER use `ramping-vus` — it hides latency problems. Use `constant-arrival-rate` or `ramping-arrival-rate`:
+```
+scenarios: {
+  warmup:     { executor: 'constant-arrival-rate', exec: 'healthCheck', rate: 5, timeUnit: '1s', duration: '10s', preAllocatedVUs: 10, maxVUs: 20, startTime: '0s' },
+  steady:     { executor: 'constant-arrival-rate', exec: 'mainFlow', rate: 10, timeUnit: '1s', duration: '30s', preAllocatedVUs: 20, maxVUs: 40, startTime: '10s', gracefulStop: '5s' },
+  spike:      { executor: 'ramping-arrival-rate', exec: 'mainFlow', startRate: 10, timeUnit: '1s', stages: [{ target: 40, duration: '10s' }, { target: 10, duration: '10s' }], preAllocatedVUs: 30, maxVUs: 60, startTime: '40s', gracefulStop: '5s' },
+}
+```
+
+#### Script structure
+- Separate named `exec` function per scenario (NEVER a single monolithic `default`)
+- Wrap each endpoint in `group('Name', () => { ... })`
+- setup() for auth, teardown() if cleanup needed
+- Deep `check()`: validate status, body schema, content-type, response time
+- Custom `Trend` per endpoint, `Rate` for errors
+
+#### handleSummary — COPY EXACTLY (the run script generates the markdown report from this JSON)
+```
+export function handleSummary(data) {
+  return {
+    'k6/kassandra/results/mr-{MR_IID}-{slug}.json': JSON.stringify(data, null, 2),
+    stdout: JSON.stringify({ status: 'complete', metrics_count: Object.keys(data.metrics).length }),
+  };
+}
+```
+
+#### Thresholds
+- Use SLOs above for per-endpoint thresholds
+- Use `abortOnFail: true` with `delayAbortEval: '10s'` on error-rate thresholds
+- Total k6 wall-clock under 90 seconds
