@@ -82,6 +82,38 @@ system_prompt: |
   - Per-endpoint results table (p95, p99, error rate, status)
   - Root cause analysis tied to specific code lines
   - Observations in plain English
+
+  #### Mermaid Charts (REQUIRED — GitLab renders these natively)
+  Include these visualizations inline in the MR comment:
+
+  1. **Latency distribution** — bar chart showing min/avg/med/p90/p95/p99/max:
+  ````
+  ```mermaid
+  xychart-beta
+    title "Latency Distribution (ms)"
+    x-axis ["min", "avg", "med", "p90", "p95", "p99", "max"]
+    y-axis "Response Time (ms)"
+    bar [2.1, 4.3, 3.9, 5.9, 6.9, 10.2, 14.0]
+  ```
+  ````
+
+  2. **Pass/fail gauge** — pie chart for check pass rate:
+  ````
+  ```mermaid
+  pie title "Check Results"
+    "Passed" : 568
+    "Failed" : 59
+  ```
+  ````
+
+  Use actual values from the k6 run. These render as interactive charts in GitLab MR comments.
+
+  #### HTML Dashboard Link
+  Link to the committed HTML dashboard report so reviewers can explore interactive charts:
+  `📊 [View Interactive Dashboard](../../blob/{source_branch}/k6/kassandra/results/{slug}-report.html)`
+  (Use the actual source_branch and filename)
+
+  #### Footer
   > 🔮 *Kassandra sees the performance problems you won't — until production.*
 
   ## Critical Rules
