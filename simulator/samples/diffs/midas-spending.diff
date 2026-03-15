@@ -1,0 +1,51 @@
+diff --git a/demos/midas-bank/app.py b/demos/midas-bank/app.py
+index 9ce80e1..f9a6904 100644
+--- a/demos/midas-bank/app.py
++++ b/demos/midas-bank/app.py
+@@ -280,6 +280,46 @@ def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_
+     return dict(tx)
+ 
+ 
++# ── Spending Summary ──
++
++
++@app.get("/api/accounts/{account_id}/spending-summary")
++def spending_summary(account_id: int, user=Depends(get_current_user), db=Depends(get_db)):
++    """Spending summary with category breakdown — has N+1 query anti-pattern."""
++    acct = db.execute(
++        "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (account_id, user["id"])
++    ).fetchone()
++    if not acct:
++        raise HTTPException(404, "Account not found")
++
++    txns = db.execute(
++        "SELECT * FROM transactions WHERE from_account_id = ? ORDER BY created_at DESC",
++        (account_id,),
++    ).fetchall()
++
++    # N+1: fetch destination account for EVERY transaction individually
++    enriched = []
++    for tx in txns:
++        dest = db.execute(
++            "SELECT name, currency FROM accounts WHERE id = ?", (tx["to_account_id"],)
++        ).fetchone()
++        enriched.append({
++            "id": tx["id"],
++            "amount": tx["amount"],
++            "description": tx["description"],
++            "to_account": dict(dest) if dest else None,
++            "created_at": tx["created_at"],
++        })
++
++    total_spent = sum(t["amount"] for t in enriched)
++    return {
++        "account_id": account_id,
++        "total_spent": total_spent,
++        "transaction_count": len(enriched),
++        "transactions": enriched,
++    }
++
++
+ # ── Health ──
+ 
+ 
