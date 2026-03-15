@@ -12,7 +12,7 @@ system_prompt: |
   3. read_file AGENTS.md to get project config (SLOs, auth, execution command)
   4. run_command to get API context via GraphRAG:
      ```
-     run_command: python3 graphrag/cli.py --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
+     run_command: python3 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
      {paste the diff here}
      DIFF
      ```
@@ -81,108 +81,17 @@ system_prompt: |
   ```
   ONLY import from k6 built-ins: `k6/http`, `k6`, `k6/metrics`, `k6/execution`, `k6/encoding`.
 
-  #### handleSummary — COPY THIS EXACTLY (generates the MR comment body)
-  Replace {MR_IID} and {slug} with actual values. Do NOT modify the formatMarkdownReport function.
+  #### handleSummary — COPY THIS EXACTLY (writes JSON for the report generator)
+  Replace {MR_IID} and {slug} with actual values.
   ```
   export function handleSummary(data) {
-    const md = formatMarkdownReport(data);
     return {
       'k6/kassandra/results/mr-{MR_IID}-{slug}.json': JSON.stringify(data, null, 2),
-      'k6/kassandra/results/mr-{MR_IID}-{slug}-report.md': md,
-      stdout: md,
+      stdout: JSON.stringify({ status: 'complete', metrics_count: Object.keys(data.metrics).length }),
     };
   }
-
-  function formatMarkdownReport(data) {
-    const lines = [];
-    const duration = (data.state.testRunDurationMs / 1000).toFixed(1);
-    const httpReqs = data.metrics.http_reqs ? data.metrics.http_reqs.values.count : 0;
-
-    lines.push('## 🔮 Kassandra Performance Report\n');
-    lines.push(`| Metric | Value |`);
-    lines.push(`|--------|-------|`);
-    lines.push(`| Duration | ${duration}s |`);
-    lines.push(`| Total Requests | ${httpReqs} |`);
-    lines.push('');
-
-    // Threshold results
-    const thresholdRows = [];
-    for (const [key, metric] of Object.entries(data.metrics)) {
-      if (!metric.thresholds) continue;
-      for (const [expr, result] of Object.entries(metric.thresholds)) {
-        thresholdRows.push(`| ${key} | \`${expr}\` | ${result.ok ? '✅ PASS' : '❌ FAIL'} |`);
-      }
-    }
-    if (thresholdRows.length > 0) {
-      lines.push('### Thresholds\n');
-      lines.push('| Metric | Threshold | Status |');
-      lines.push('|--------|-----------|--------|');
-      lines.push(...thresholdRows);
-      lines.push('');
-    }
-
-    // Latency metrics table
-    const latencyRows = [];
-    for (const [key, metric] of Object.entries(data.metrics)) {
-      if (metric.type !== 'trend' || metric.contains !== 'time') continue;
-      const v = metric.values;
-      latencyRows.push(`| ${key} | ${v.avg.toFixed(1)} | ${v.med.toFixed(1)} | ${v['p(95)'].toFixed(1)} | ${v['p(99)'].toFixed(1)} | ${v.max.toFixed(1)} |`);
-    }
-    if (latencyRows.length > 0) {
-      lines.push('### Latency (ms)\n');
-      lines.push('| Metric | Avg | Med | p95 | p99 | Max |');
-      lines.push('|--------|-----|-----|-----|-----|-----|');
-      lines.push(...latencyRows);
-      lines.push('');
-    }
-
-    // Mermaid latency chart for http_req_duration
-    const httpDur = data.metrics.http_req_duration;
-    if (httpDur && httpDur.type === 'trend') {
-      const v = httpDur.values;
-      lines.push('```mermaid');
-      lines.push('xychart-beta');
-      lines.push('  title "HTTP Request Latency (ms)"');
-      lines.push('  x-axis ["min", "avg", "med", "p90", "p95", "p99", "max"]');
-      lines.push('  y-axis "Response Time (ms)"');
-      lines.push(`  bar [${v.min.toFixed(1)}, ${v.avg.toFixed(1)}, ${v.med.toFixed(1)}, ${v['p(90)'].toFixed(1)}, ${v['p(95)'].toFixed(1)}, ${v['p(99)'].toFixed(1)}, ${v.max.toFixed(1)}]`);
-      lines.push('```\n');
-    }
-
-    // Checks pass/fail pie chart
-    const checks = data.metrics.checks;
-    if (checks && checks.type === 'rate') {
-      const passed = checks.values.passes;
-      const failed = checks.values.fails;
-      lines.push('```mermaid');
-      lines.push('pie title "Check Results"');
-      lines.push(`  "Passed (${passed})" : ${passed}`);
-      lines.push(`  "Failed (${failed})" : ${failed}`);
-      lines.push('```\n');
-    }
-
-    // Per-group breakdown (collapsible)
-    const groups = data.root_group ? data.root_group.groups : [];
-    if (groups.length > 0) {
-      lines.push('<details>');
-      lines.push('<summary>Per-Endpoint Check Results</summary>\n');
-      for (const group of groups) {
-        lines.push(`**${group.name}**`);
-        for (const check of (group.checks || [])) {
-          const total = check.passes + check.fails;
-          const pct = total > 0 ? ((check.passes / total) * 100).toFixed(0) : 0;
-          const icon = check.fails === 0 ? '✅' : '❌';
-          lines.push(`  ${icon} ${check.name}: ${pct}% (${check.passes}/${total})`);
-        }
-        lines.push('');
-      }
-      lines.push('</details>\n');
-    }
-
-    lines.push('> 🔮 *Kassandra sees the performance problems you won\'t — until production.*');
-    return lines.join('\n');
-  }
   ```
+  The run script automatically generates the markdown report from the JSON. Do NOT write your own report formatting.
   - Total k6 wall-clock under 90 seconds
 
   ### Step 3: Commit
@@ -194,9 +103,9 @@ system_prompt: |
   The command handles branch checkout, app startup, k6 execution, and cleanup.
 
   ### Step 5: Report
-  The k6 handleSummary already generated a markdown report. Read it and post it:
+  The run script generates a markdown report from k6 JSON output. Read it and post it:
   1. read_file k6/kassandra/results/mr-{MR_IID}-{slug}-report.md
-  2. Post the content via create_merge_request_note
+  2. Post the EXACT content via create_merge_request_note — do NOT rewrite or summarize
   If the report file doesn't exist (k6 crashed), post the raw k6 output instead with error analysis.
 
   ## Critical Rules
