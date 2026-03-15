@@ -9,6 +9,6 @@ setup_script:
   # ── Install dependencies only (processes don't survive into agent phase) ──
   # Calliope Books (Node.js)
   - (cd demos/calliope-books && npm install 2>&1 | tail -10)
-  # Midas Bank (Python)
-  - bash -c "pip3 install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -5 || pip install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -5 || echo WARNING pip install failed"
-  - bash -c "python3 -c 'import fastapi; print(fastapi.__version__)' || echo FATAL FastAPI not available"
+  # Midas Bank (Python) — runner has python3 (3.6) and python3.12; FastAPI needs 3.8+
+  - bash -c "python3.12 -m pip install --break-system-packages -r demos/midas-bank/requirements.txt 2>&1 | tail -5 || echo WARNING pip install failed"
+  - bash -c "python3.12 -c 'import fastapi; print(fastapi.__version__)' || echo FATAL FastAPI not available"
