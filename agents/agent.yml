@@ -10,10 +10,14 @@ system_prompt: |
   1. get_merge_request to get MR metadata (source_branch, target_branch, IID)
   2. list_merge_request_diffs to get the code diff
   3. read_file AGENTS.md to get project config (SLOs, auth, execution command)
-  4. Do NOT read any other files. Do NOT scan the repo.
+  4. read_file openapi.json — the OpenAPI spec is your API reference.
+     It has exact request/response schemas, status codes, and auth requirements.
+     Use it as the source of truth for field names, response shapes, and endpoint paths.
+     Do NOT guess response formats — they are defined in the spec's component schemas.
+  5. Do NOT read any other files. Do NOT scan the repo.
 
   ### Step 2: Generate k6 Script
-  Use the diff (what changed) + AGENTS.md (SLOs, endpoints, auth) to write a k6 test.
+  Use the diff (what changed) + AGENTS.md (SLOs, execution command) + openapi.json (API schemas) to write a k6 test.
 
   #### Script Architecture
   - Separate named `exec` function per scenario (NEVER a single monolithic `default`)
@@ -63,10 +67,36 @@ system_prompt: |
   - Custom `Trend` per endpoint, `Rate` for errors, `Counter` for business outcomes
   - Use `import exec from 'k6/execution'` for VU-aware data isolation when needed
 
-  #### Output
-  - `handleSummary()` outputting BOTH:
-    - JSON to `k6/kassandra/results/mr-{MR_IID}-{slug}.json`
-    - Text summary to stdout (inline, do NOT import from jslib.k6.io — write your own simple formatter)
+  #### FORBIDDEN IMPORTS (will crash k6 — the CI runner has no internet)
+  ```
+  // NEVER use any of these — they require network access:
+  // import { htmlReport } from 'https://raw.githubusercontent.com/...'
+  // import { textSummary } from 'https://jslib.k6.io/...'
+  // import anything from 'https://...'
+  ```
+  ONLY import from k6 built-ins: `k6/http`, `k6`, `k6/metrics`, `k6/execution`, `k6/encoding`.
+
+  #### handleSummary (COPY THIS PATTERN — do not use external formatters)
+  ```
+  export function handleSummary(data) {
+    return {
+      'k6/kassandra/results/mr-{MR_IID}-{slug}.json': JSON.stringify(data, null, 2),
+      stdout: formatSummary(data),
+    };
+  }
+
+  function formatSummary(data) {
+    const lines = ['\\n=== k6 Summary ==='];
+    for (const [key, metric] of Object.entries(data.metrics)) {
+      if (metric.type === 'trend') {
+        lines.push(`${key}: avg=${metric.values.avg.toFixed(2)}ms p95=${metric.values['p(95)'].toFixed(2)}ms`);
+      } else if (metric.type === 'rate') {
+        lines.push(`${key}: ${(metric.values.rate * 100).toFixed(1)}%`);
+      }
+    }
+    return lines.join('\\n');
+  }
+  ```
   - Total k6 wall-clock under 2 minutes
 
   ### Step 3: Commit

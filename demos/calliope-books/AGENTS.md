@@ -26,21 +26,14 @@ The execution command below handles EVERYTHING — app startup, branch checkout,
 - Book listing/search: p95 < 1000ms
 - Book detail (with reviews): p95 < 1500ms
 
-### Auth
-- Login: POST /api/auth/login with {"email": "reader@calliope.dev", "password": "calliope123"}
-- Token type: JWT Bearer → Authorization: Bearer {token}
+### API Reference
+- OpenAPI spec: `openapi.json` (static file in repo)
+- Read the spec for exact request/response schemas, status codes, and field names
+- Seed credentials: email=reader@calliope.dev, password=calliope123
+- Auth: POST /api/auth/login → response has `token` field (NOT `access_token`) → Bearer {token}
 
 ### Excluded Paths
 - /api/health
-
-### API Endpoints
-- POST /api/auth/register — register user
-- POST /api/auth/login — login
-- GET /api/books — list books (query: genre, author, search, limit, offset)
-- GET /api/books/:id — get book with reviews
-- POST /api/books — create book (auth)
-- GET /api/books/:id/reviews — list reviews
-- POST /api/books/:id/reviews — add review (auth, rating 1-5)
 
 ### Test Conventions
 - Directory: k6/kassandra/
