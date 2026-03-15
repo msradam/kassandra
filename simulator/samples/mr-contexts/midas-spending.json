@@ -1,0 +1,8 @@
+{
+  "iid": 99,
+  "title": "feat: add spending summary endpoint to Midas Bank",
+  "description": "Adds GET /api/accounts/{account_id}/spending endpoint that returns spending summary with total_spent, transaction_count, and transaction details for a given account.",
+  "source_branch": "feature/midas-spending-v5",
+  "target_branch": "main",
+  "author": "developer"
+}
