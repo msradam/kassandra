@@ -1,7 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
-import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 // Custom metrics
 const transferDuration = new Trend('transfer_duration', true);
@@ -244,8 +243,54 @@ export function handleSummary(data) {
   const resultsDir = 'k6/kassandra/results';
   const jsonFile = `${resultsDir}/mr-36-transfer-ratelimit-${timestamp}.json`;
 
+  // Custom text summary
+  let summary = '\n';
+  summary += '================================================================================\n';
+  summary += '  Performance Test Summary: Transfer Rate Limiting (MR !36)\n';
+  summary += '================================================================================\n\n';
+
+  // Scenarios
+  for (const [name, scenario] of Object.entries(data.metrics.scenarios?.values || {})) {
+    summary += `Scenario: ${name}\n`;
+  }
+  summary += '\n';
+
+  // Key metrics
+  const metrics = data.metrics;
+  if (metrics.http_req_duration) {
+    summary += `HTTP Request Duration:\n`;
+    summary += `  avg: ${metrics.http_req_duration.values.avg.toFixed(2)}ms\n`;
+    summary += `  p95: ${metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
+    summary += `  p99: ${metrics.http_req_duration.values['p(99)'].toFixed(2)}ms\n`;
+  }
+
+  if (metrics.transfer_duration) {
+    summary += `\nTransfer Duration:\n`;
+    summary += `  avg: ${metrics.transfer_duration.values.avg.toFixed(2)}ms\n`;
+    summary += `  p95: ${metrics.transfer_duration.values['p(95)'].toFixed(2)}ms\n`;
+    summary += `  p99: ${metrics.transfer_duration.values['p(99)'].toFixed(2)}ms\n`;
+  }
+
+  if (metrics.http_req_failed) {
+    const failRate = (metrics.http_req_failed.values.rate * 100).toFixed(2);
+    summary += `\nHTTP Request Failure Rate: ${failRate}%\n`;
+  }
+
+  if (metrics.rate_limit_errors) {
+    const rateLimitRate = (metrics.rate_limit_errors.values.rate * 100).toFixed(2);
+    summary += `Rate Limit Errors: ${rateLimitRate}%\n`;
+  }
+
+  if (metrics.self_transfer_errors) {
+    const selfTransferRate = (metrics.self_transfer_errors.values.rate * 100).toFixed(2);
+    summary += `Self-Transfer Validation Errors: ${selfTransferRate}%\n`;
+  }
+
+  summary += '\n';
+  summary += '================================================================================\n';
+
   return {
-    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+    stdout: summary,
     [jsonFile]: JSON.stringify(data, null, 2),
   };
 }
