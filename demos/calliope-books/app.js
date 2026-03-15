@@ -260,6 +260,39 @@ app.post('/api/books/:id/reviews', authenticate, (req, res) => {
   res.status(201).json(get('SELECT * FROM reviews WHERE id = ?', [lastId]));
 });
 
+// ── Search ──
+
+app.get('/api/books/search', (req, res) => {
+  const { q, limit = 20, offset = 0 } = req.query;
+  if (!q) return res.status(400).json({ error: 'q parameter required' });
+
+  // Deliberately slow: correlated subquery + N+1 pattern
+  const books = all(
+    `SELECT b.*,
+       (SELECT COUNT(*) FROM reviews r WHERE r.book_id = b.id) as review_count,
+       (SELECT AVG(r.rating) FROM reviews r WHERE r.book_id = b.id) as avg_rating
+     FROM books b
+     WHERE b.title LIKE ? OR b.author LIKE ? OR b.genre LIKE ?
+     LIMIT ? OFFSET ?`,
+    [`%${q}%`, `%${q}%`, `%${q}%`, Number(limit), Number(offset)]
+  );
+
+  // N+1: fetch reviews for each book individually
+  const enriched = books.map(book => {
+    const reviews = all(
+      'SELECT r.*, u.username FROM reviews r JOIN users u ON r.user_id = u.id WHERE r.book_id = ? ORDER BY r.created_at DESC LIMIT 3',
+      [book.id]
+    );
+    return { ...book, recent_reviews: reviews };
+  });
+
+  // Simulate slow full-text scoring (blocking)
+  const start = Date.now();
+  while (Date.now() - start < 800) { /* busy wait */ }
+
+  res.json({ results: enriched, query: q, count: enriched.length, total: books.length });
+});
+
 // ── Health ──
 
 app.get('/api/health', (_req, res) => {
