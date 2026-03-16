@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-import networkx as nx
 
 from .builder import OpenAPIGraph
 
