@@ -336,6 +336,39 @@ def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_
     return dict(tx)
 
 
+WITHDRAWAL_LIMIT = 5_000.00
+MINIMUM_BALANCE = 25.00
+
+
+class WithdrawalRequest(BaseModel):
+    account_id: int
+    amount: float
+    description: str = ""
+
+
+@app.post("/api/transactions/withdraw", status_code=201, response_model=TransactionOut)
+def withdraw(req: WithdrawalRequest, user=Depends(get_current_user), db=Depends(get_db)):
+    if req.amount <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    if req.amount > WITHDRAWAL_LIMIT:
+        raise HTTPException(400, f"Single withdrawal cannot exceed ${WITHDRAWAL_LIMIT:,.2f}")
+    acct = db.execute(
+        "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (req.account_id, user["id"])
+    ).fetchone()
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    if acct["balance"] - req.amount < MINIMUM_BALANCE:
+        raise HTTPException(400, f"Withdrawal would bring balance below minimum ${MINIMUM_BALANCE:,.2f}")
+    db.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (req.amount, req.account_id))
+    cur = db.execute(
+        "INSERT INTO transactions (from_account_id, amount, type, description) VALUES (?, ?, 'withdrawal', ?)",
+        (req.account_id, req.amount, req.description),
+    )
+    db.commit()
+    tx = db.execute("SELECT * FROM transactions WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(tx)
+
+
 # ── Health ──
 
 
