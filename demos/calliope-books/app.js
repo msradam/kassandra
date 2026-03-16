@@ -260,6 +260,76 @@ app.post('/api/books/:id/reviews', authenticate, (req, res) => {
   res.status(201).json(get('SELECT * FROM reviews WHERE id = ?', [lastId]));
 });
 
+// ── Authors routes ──
+
+app.get('/api/authors', (req, res) => {
+  const authors = all(`
+    SELECT author as name, COUNT(*) as book_count,
+           ROUND(AVG(b_avg.avg_rating), 2) as avg_rating
+    FROM books
+    LEFT JOIN (
+      SELECT book_id, AVG(rating) as avg_rating FROM reviews GROUP BY book_id
+    ) b_avg ON b_avg.book_id = books.id
+    GROUP BY author
+    ORDER BY book_count DESC
+  `);
+  res.json({ authors, total: authors.length });
+});
+
+app.get('/api/authors/:name/books', (req, res) => {
+  const books = all('SELECT * FROM books WHERE author = ? ORDER BY year', [req.params.name]);
+  if (books.length === 0) return res.status(404).json({ error: 'Author not found' });
+  res.json({ author: req.params.name, books, total: books.length });
+});
+
+// ── Wishlist routes ──
+
+// In-memory wishlist (per user)
+const wishlists = new Map();
+
+app.get('/api/wishlist', authenticate, (req, res) => {
+  const list = wishlists.get(req.user.id) || [];
+  const books = list.map(bookId => get('SELECT * FROM books WHERE id = ?', [bookId])).filter(Boolean);
+  res.json({ books, total: books.length });
+});
+
+app.post('/api/wishlist', authenticate, (req, res) => {
+  const { book_id } = req.body;
+  if (!book_id) return res.status(400).json({ error: 'book_id required' });
+  const book = get('SELECT id FROM books WHERE id = ?', [book_id]);
+  if (!book) return res.status(404).json({ error: 'Book not found' });
+
+  const list = wishlists.get(req.user.id) || [];
+  if (list.includes(book_id)) return res.status(409).json({ error: 'Book already in wishlist' });
+  list.push(book_id);
+  wishlists.set(req.user.id, list);
+  res.status(201).json({ message: 'Added to wishlist', book_id });
+});
+
+app.delete('/api/wishlist/:bookId', authenticate, (req, res) => {
+  const bookId = Number(req.params.bookId);
+  const list = wishlists.get(req.user.id) || [];
+  const idx = list.indexOf(bookId);
+  if (idx === -1) return res.status(404).json({ error: 'Book not in wishlist' });
+  list.splice(idx, 1);
+  wishlists.set(req.user.id, list);
+  res.status(204).end();
+});
+
+// ── Stats route ──
+
+app.get('/api/stats', (req, res) => {
+  const bookCount = get('SELECT COUNT(*) as n FROM books').n;
+  const reviewCount = get('SELECT COUNT(*) as n FROM reviews').n;
+  const userCount = get('SELECT COUNT(*) as n FROM users').n;
+  const topGenres = all(`
+    SELECT genre, COUNT(*) as count FROM books
+    WHERE genre IS NOT NULL GROUP BY genre ORDER BY count DESC LIMIT 5
+  `);
+  const avgRating = get('SELECT ROUND(AVG(rating), 2) as avg FROM reviews')?.avg || 0;
+  res.json({ books: bookCount, reviews: reviewCount, users: userCount, avg_rating: avgRating, top_genres: topGenres });
+});
+
 // ── Health ──
 
 app.get('/api/health', (_req, res) => {

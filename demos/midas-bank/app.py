@@ -336,6 +336,122 @@ def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_
     return dict(tx)
 
 
+# ── User Profile ──
+
+
+class UserProfileOut(BaseModel):
+    id: int
+    username: str
+    email: str
+    account_count: int
+    total_balance: float
+    transaction_count: int
+    created_at: str | None = None
+
+
+@app.get("/api/user/profile", response_model=UserProfileOut)
+def get_profile(user=Depends(get_current_user), db=Depends(get_db)):
+    row = db.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
+    if not row:
+        raise HTTPException(404, "User not found")
+    accounts = db.execute("SELECT * FROM accounts WHERE user_id = ?", (user["id"],)).fetchall()
+    total_balance = sum(a["balance"] for a in accounts)
+    tx_count = 0
+    for a in accounts:
+        tx_count += db.execute(
+            "SELECT COUNT(*) FROM transactions WHERE from_account_id = ? OR to_account_id = ?",
+            (a["id"], a["id"]),
+        ).fetchone()[0]
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "email": row["email"],
+        "account_count": len(accounts),
+        "total_balance": total_balance,
+        "transaction_count": tx_count,
+        "created_at": row["created_at"],
+    }
+
+
+# ── Account Statement ──
+
+
+class StatementEntry(BaseModel):
+    date: str
+    description: str
+    amount: float
+    direction: str  # "credit" or "debit"
+    balance_after: float
+
+
+class StatementOut(BaseModel):
+    account_id: int
+    account_name: str
+    period_start: str
+    period_end: str
+    opening_balance: float
+    closing_balance: float
+    entries: list[StatementEntry]
+
+
+@app.get("/api/accounts/{account_id}/statement", response_model=StatementOut)
+def get_statement(
+    account_id: int,
+    days: int = 30,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    acct = db.execute(
+        "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (account_id, user["id"])
+    ).fetchone()
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    if days < 1 or days > 365:
+        raise HTTPException(400, "Days must be between 1 and 365")
+
+    txns = db.execute(
+        "SELECT * FROM transactions WHERE (from_account_id = ? OR to_account_id = ?) "
+        "AND created_at >= datetime('now', ?) ORDER BY created_at ASC",
+        (account_id, account_id, f"-{days} days"),
+    ).fetchall()
+
+    entries = []
+    running = acct["balance"]
+    # Walk backwards to compute running balance
+    for tx in reversed(txns):
+        if tx["from_account_id"] == account_id:
+            running += tx["amount"]
+        else:
+            running -= tx["amount"]
+    opening = running
+
+    running = opening
+    for tx in txns:
+        if tx["from_account_id"] == account_id:
+            direction = "debit"
+            running -= tx["amount"]
+        else:
+            direction = "credit"
+            running += tx["amount"]
+        entries.append({
+            "date": tx["created_at"],
+            "description": tx["description"] or tx["type"],
+            "amount": tx["amount"],
+            "direction": direction,
+            "balance_after": round(running, 2),
+        })
+
+    return {
+        "account_id": account_id,
+        "account_name": acct["name"],
+        "period_start": f"-{days} days",
+        "period_end": "now",
+        "opening_balance": round(opening, 2),
+        "closing_balance": acct["balance"],
+        "entries": entries,
+    }
+
+
 # ── Health ──
 
 
