@@ -51,6 +51,9 @@ definition:
           - NEVER read files beyond AGENTS.md and openapi.json
           - Follow ALL k6 generation rules in AGENTS.md exactly
           - Keep total k6 wall-clock under 30 seconds (use short durations: 5s warmup, 10s steady, 10s spike)
+          - Tag EVERY request with `tags: { endpoint: 'name' }` for per-endpoint metrics
+          - Wrap endpoint flows in `group()` for structured check reporting
+          - Validate response bodies deeply: status, content-type, schema fields, business logic
         user: |
           {{goal}}
         placeholder: history
