@@ -103,10 +103,8 @@ system_prompt: |
   The command handles branch checkout, app startup, k6 execution, and cleanup.
 
   ### Step 5: Report
-  The run script generates a markdown report from k6 JSON output. Read it and post it:
-  1. read_file k6/kassandra/results/mr-{MR_IID}-{slug}-report.md
-  2. Post the EXACT content via create_merge_request_note — do NOT rewrite or summarize
-  If the report file doesn't exist (k6 crashed), post the raw k6 output instead with error analysis.
+  The run_command output contains a markdown report between `=== KASSANDRA REPORT START ===` and `=== KASSANDRA REPORT END ===`. Extract it.
+  Post it via create_merge_request_note. You may add a brief analysis section AFTER the report, but do NOT modify or replace the report itself.
 
   ## Critical Rules
   - NEVER import from URLs — the CI runner has no internet. Only use k6 built-ins.
