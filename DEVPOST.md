@@ -59,10 +59,10 @@ No CI YAML changes. No per-project agent code. Just drop an `AGENTS.md` config f
 
 ## Accomplishments that we're proud of
 
-- **Zero self-correction commits** across all MR runs (MR !36, !37, !38). The agent generates correct k6 scripts on the first try — no "fix: remove external import" patches. 1,650+ requests executed, all thresholds passing.
+- **Caught a real bug on first run** (MR !39): Kassandra detected a 100% failure rate on a new Calliope Books endpoint, correctly diagnosed an Express.js route ordering bug (`/api/books/suggestions` shadowed by `/api/books/:id`), and recommended the exact fix — all autonomously. This is the real value: catching issues before production.
+- **Clean runs across Python/FastAPI** (MRs !36, !37, !38): 2,841 requests across 3 Midas Bank features, all thresholds passing, zero self-correction commits.
 - **Novel OpenAPI GraphRAG** — no prior art combines OpenAPI graph structure + graph-based retrieval + LLM context injection. 96% context reduction means the agent gets exactly the right schemas without wasting tokens on irrelevant spec content.
 - **Project-agnostic design** — tested across Python/FastAPI and Node.js/Express with no agent code changes. Drop an AGENTS.md and go.
-- **Rich visual reports** with Mermaid charts that render natively in GitLab — no external dashboards, no CI YAML, no infrastructure needed.
 - **Truly autonomous workflow** — from `@mention` to posted report with zero human intervention. The agent reads the diff, reads the config, generates the test, commits it, executes it, and posts the results.
 
 ## What we learned
