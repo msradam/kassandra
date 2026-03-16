@@ -25,6 +25,7 @@ if [ -n "$BRANCH" ]; then
   git checkout "$BRANCH" 2>/dev/null || git checkout "origin/$BRANCH" 2>/dev/null || echo "WARNING: Could not checkout $BRANCH"
 fi
 
+REPORT_NAME=$(basename "$SCRIPT_PATH" .js)
 APP_PID=""
 
 cleanup() {
@@ -90,7 +91,24 @@ for i in $(seq 1 10); do
   sleep 1
 done
 
-# ── Step 3: Validate k6 script ──
+# ── Step 3: Pre-test risk analysis ──
+RISK_REPORT=""
+RISK_PYTHON=$(command -v python3.12 || command -v python3)
+mkdir -p k6/kassandra/results
+if [ -n "$BRANCH" ]; then
+  echo "Running pre-test risk analysis..."
+  DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+  if [ -n "$DIFF_TEXT" ]; then
+    RISK_FILE="k6/kassandra/results/${REPORT_NAME}-risk.md"
+    echo "$DIFF_TEXT" | $RISK_PYTHON scripts/analyze-risk.py --diff-stdin > "$RISK_FILE" 2>/dev/null || true
+    if [ -f "$RISK_FILE" ] && [ -s "$RISK_FILE" ]; then
+      RISK_REPORT="$RISK_FILE"
+      echo "Risk analysis complete."
+    fi
+  fi
+fi
+
+# ── Step 4: Validate k6 script ──
 echo ""
 echo "Validating k6 script: $SCRIPT_PATH"
 if ! k6 inspect "$SCRIPT_PATH" > /dev/null 2>&1; then
@@ -100,9 +118,6 @@ if ! k6 inspect "$SCRIPT_PATH" > /dev/null 2>&1; then
 fi
 echo "Script validated OK."
 
-# ── Step 4: Create results directory ──
-mkdir -p k6/kassandra/results
-
 # ── Step 5: Run k6 test ──
 echo ""
 echo "════════════════════════════════════════════════════════"
@@ -111,7 +126,6 @@ echo "════════════════════════�
 echo ""
 
 # Generate HTML dashboard report alongside JSON (k6 v0.49+)
-REPORT_NAME=$(basename "$SCRIPT_PATH" .js)
 K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT="k6/kassandra/results/${REPORT_NAME}-report.html" \
   k6 run --env BASE_URL="$BASE_URL" "$SCRIPT_PATH" 2>&1
 K6_EXIT=$?
@@ -127,7 +141,25 @@ fi
 JSON_RESULT="k6/kassandra/results/${REPORT_NAME}.json"
 if [ -f "$JSON_RESULT" ]; then
   PYTHON=$(command -v python3.12 || command -v python3)
-  $PYTHON scripts/generate-report.py "$JSON_RESULT" > /dev/null 2>&1 || echo "WARNING: Report generation failed"
+  BASELINE_DIR=".kassandra/baselines"
+  BASELINE_FILE="${BASELINE_DIR}/${APP_TYPE}.json"
+  REPORT_ARGS="$JSON_RESULT"
+
+  # Use baseline for regression detection if available
+  if [ -f "$BASELINE_FILE" ]; then
+    echo "Baseline found: $BASELINE_FILE (regression detection enabled)"
+    REPORT_ARGS="$REPORT_ARGS --baseline $BASELINE_FILE"
+  fi
+
+  # Save current results as new baseline
+  REPORT_ARGS="$REPORT_ARGS --save-baseline $BASELINE_FILE"
+
+  # Include risk analysis if available
+  if [ -n "$RISK_REPORT" ]; then
+    REPORT_ARGS="$REPORT_ARGS --risk-report $RISK_REPORT"
+  fi
+
+  $PYTHON scripts/generate-report.py $REPORT_ARGS > /dev/null 2>&1 || echo "WARNING: Report generation failed"
   MD_RESULT="k6/kassandra/results/${REPORT_NAME}-report.md"
   if [ -f "$MD_RESULT" ]; then
     echo ""

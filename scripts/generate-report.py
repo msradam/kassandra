@@ -8,6 +8,7 @@ Reads k6 handleSummary JSON, writes a .md report alongside it, prints to stdout.
 This runs AFTER k6 — the agent does NOT need to generate the report formatting.
 """
 
+import argparse
 import json
 import re
 import sys
@@ -93,10 +94,45 @@ def _collect_endpoint_metrics(metrics: dict) -> dict[str, dict]:
     return endpoint_metrics
 
 
-def format_report(data: dict) -> str:
+def _delta_str(current: float, baseline: float) -> str:
+    """Format a delta with arrow and percentage."""
+    if baseline == 0 or current is None or baseline is None:
+        return ""
+    diff = current - baseline
+    pct = (diff / baseline) * 100
+    if abs(pct) < 1:
+        return " ≈"
+    arrow = "↑" if diff > 0 else "↓"
+    return f" {arrow}{abs(pct):.0f}%"
+
+
+def _regression_severity(pct_change: float) -> str:
+    """Classify a latency increase."""
+    if pct_change > 50:
+        return "🔴"
+    if pct_change > 20:
+        return "🟡"
+    return "🟢"
+
+
+def _build_baseline_lookup(baseline_data: dict) -> dict:
+    """Extract per-endpoint and global metrics from a baseline k6 JSON."""
+    if not baseline_data:
+        return {}
+    bmetrics = baseline_data.get("metrics", {})
+    lookup = {
+        "global": bmetrics.get("http_req_duration", {}).get("values", {}),
+        "endpoints": _collect_endpoint_metrics(bmetrics),
+        "http_reqs": bmetrics.get("http_reqs", {}).get("values", {}),
+    }
+    return lookup
+
+
+def format_report(data: dict, baseline_data: dict | None = None, risk_report: str | None = None) -> str:
     lines = []
     duration = data["state"]["testRunDurationMs"] / 1000
     metrics = data.get("metrics", {})
+    baseline = _build_baseline_lookup(baseline_data) if baseline_data else {}
 
     # ── Executive Summary
     http_reqs = metrics.get("http_reqs", {}).get("values", {})
@@ -156,6 +192,11 @@ def format_report(data: dict) -> str:
     lines.append(f"| **Data Transferred** | ↓ {recv_kb:.0f} KB / ↑ {sent_kb:.0f} KB |")
     lines.append("")
 
+    # ── Pre-test risk analysis (if provided)
+    if risk_report and risk_report.strip():
+        lines.append(risk_report.strip())
+        lines.append("")
+
     # ── Threshold results
     threshold_rows = []
     for key, metric in sorted(metrics.items()):
@@ -180,23 +221,82 @@ def format_report(data: dict) -> str:
         lines.extend(threshold_rows)
         lines.append("")
 
+    # ── Regression analysis (if baseline exists)
+    has_baseline = bool(baseline)
+    regressions = []
+    if has_baseline:
+        b_global = baseline.get("global", {})
+        b_endpoints = baseline.get("endpoints", {})
+        # Check each endpoint for regressions
+        for ep_name, v in sorted(endpoint_metrics.items()):
+            b_ep = b_endpoints.get(ep_name, {})
+            if not b_ep:
+                continue
+            curr_p95 = v.get("p(95)", 0) or 0
+            base_p95 = b_ep.get("p(95)", 0) or 0
+            if base_p95 > 0:
+                pct = ((curr_p95 - base_p95) / base_p95) * 100
+                if pct > 5:  # Only flag >5% increases
+                    regressions.append({
+                        "endpoint": ep_name,
+                        "current_p95": curr_p95,
+                        "baseline_p95": base_p95,
+                        "pct_change": pct,
+                        "severity": _regression_severity(pct),
+                    })
+
+    if regressions:
+        lines.append("### ⚠️ Regression Detection\n")
+        lines.append("> Compared against baseline — latency regressions detected\n")
+        lines.append("| Endpoint | Baseline p95 | Current p95 | Change | Severity |")
+        lines.append("|----------|-------------|-------------|--------|----------|")
+        for r in regressions:
+            lines.append(
+                f"| {r['endpoint']} | {_fmt(r['baseline_p95'])}ms | "
+                f"{_fmt(r['current_p95'])}ms | ↑{r['pct_change']:.0f}% | {r['severity']} |"
+            )
+        lines.append("")
+    elif has_baseline:
+        lines.append("### ✅ Regression Detection\n")
+        lines.append("> No significant latency regressions detected vs. baseline\n")
+
     # ── Per-endpoint latency table
     lines.append("### Latency Distribution\n")
-    lines.append("| Endpoint | Avg | Med | p90 | p95 | p99 | Max |")
-    lines.append("|----------|-----|-----|-----|-----|-----|-----|")
+    if has_baseline:
+        lines.append("| Endpoint | Avg | Med | p90 | p95 | p99 | Max | Δp95 |")
+        lines.append("|----------|-----|-----|-----|-----|-----|-----|------|")
+    else:
+        lines.append("| Endpoint | Avg | Med | p90 | p95 | p99 | Max |")
+        lines.append("|----------|-----|-----|-----|-----|-----|-----|")
     if global_duration:
         v = global_duration
-        lines.append(
+        b = baseline.get("global", {}) if has_baseline else {}
+        row = (
             f"| **All (global)** | {_fmt(v['avg'])} | {_fmt(v['med'])} | "
             f"{_fmt(v.get('p(90)'))} | {_fmt(v.get('p(95)'))} | "
-            f"{_fmt(v.get('p(99)'))} | {_fmt(v['max'])} |"
+            f"{_fmt(v.get('p(99)'))} | {_fmt(v['max'])}"
         )
+        if has_baseline and b:
+            row += f" | {_delta_str(v.get('p(95)'), b.get('p(95)'))} |"
+        elif has_baseline:
+            row += " | *new* |"
+        else:
+            row += " |"
+        lines.append(row)
     for ep_name, v in sorted(endpoint_metrics.items()):
-        lines.append(
+        b_ep = baseline.get("endpoints", {}).get(ep_name, {}) if has_baseline else {}
+        row = (
             f"| {ep_name} | {_fmt(v.get('avg'))} | {_fmt(v.get('med'))} | "
             f"{_fmt(v.get('p(90)'))} | {_fmt(v.get('p(95)'))} | "
-            f"{_fmt(v.get('p(99)'))} | {_fmt(v.get('max'))} |"
+            f"{_fmt(v.get('p(99)'))} | {_fmt(v.get('max'))}"
         )
+        if has_baseline and b_ep:
+            row += f" | {_delta_str(v.get('p(95)'), b_ep.get('p(95)'))} |"
+        elif has_baseline:
+            row += " | *new* |"
+        else:
+            row += " |"
+        lines.append(row)
     lines.append("")
 
     # ── Mermaid: latency percentile distribution (global)
@@ -379,11 +479,14 @@ def format_report(data: dict) -> str:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: generate-report.py <k6-json-summary>", file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Generate Kassandra report from k6 JSON")
+    parser.add_argument("json_path", help="Path to k6 handleSummary JSON")
+    parser.add_argument("--baseline", help="Path to baseline k6 JSON for regression detection")
+    parser.add_argument("--save-baseline", help="Save current results as baseline to this path")
+    parser.add_argument("--risk-report", help="Path to pre-test risk analysis markdown")
+    args = parser.parse_args()
 
-    json_path = Path(sys.argv[1])
+    json_path = Path(args.json_path)
     if not json_path.exists():
         print(f"Error: {json_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -391,11 +494,31 @@ def main():
     with open(json_path) as f:
         data = json.load(f)
 
-    report = format_report(data)
+    baseline_data = None
+    if args.baseline:
+        baseline_path = Path(args.baseline)
+        if baseline_path.exists():
+            with open(baseline_path) as f:
+                baseline_data = json.load(f)
+
+    risk_report = None
+    if args.risk_report:
+        risk_path = Path(args.risk_report)
+        if risk_path.exists():
+            risk_report = risk_path.read_text()
+
+    report = format_report(data, baseline_data, risk_report)
 
     # Write .md alongside the .json
     md_path = json_path.parent / (json_path.stem + "-report.md")
     md_path.write_text(report)
+
+    # Save as baseline if requested
+    if args.save_baseline:
+        bl_path = Path(args.save_baseline)
+        bl_path.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(json_path, bl_path)
 
     # Also print to stdout
     print(report)
