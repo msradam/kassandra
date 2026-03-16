@@ -21,6 +21,9 @@ node_modules/
 # Secrets
 key.yml
 
+# Kassandra local state (baselines)
+.kassandra/
+
 # Generated outputs
 simulator/output/
 k6/kassandra/
