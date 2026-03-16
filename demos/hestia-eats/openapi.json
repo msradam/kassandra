@@ -1,0 +1,557 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Hestia Eats",
+    "version": "1.0.0",
+    "description": "Food delivery platform API — browse restaurants, order food, track delivery"
+  },
+  "servers": [{"url": "http://localhost:8080"}],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Restaurant": {
+        "type": "object",
+        "required": ["id", "name", "cuisine", "rating", "is_open"],
+        "properties": {
+          "id": {"type": "integer"},
+          "name": {"type": "string"},
+          "cuisine": {"type": "string"},
+          "rating": {"type": "number", "format": "float"},
+          "address": {"type": "string"},
+          "is_open": {"type": "boolean"},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "avg_price": {"type": "number", "format": "float"}
+        }
+      },
+      "RestaurantListResponse": {
+        "type": "object",
+        "required": ["restaurants", "total"],
+        "properties": {
+          "restaurants": {"type": "array", "items": {"$ref": "#/components/schemas/Restaurant"}},
+          "total": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "offset": {"type": "integer"}
+        }
+      },
+      "MenuItem": {
+        "type": "object",
+        "required": ["id", "restaurant_id", "name", "price", "category", "is_available"],
+        "properties": {
+          "id": {"type": "integer"},
+          "restaurant_id": {"type": "integer"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "price": {"type": "number", "format": "float"},
+          "category": {"type": "string"},
+          "is_available": {"type": "boolean"},
+          "calories": {"type": "integer"}
+        }
+      },
+      "MenuResponse": {
+        "type": "object",
+        "required": ["restaurant_id", "items", "total"],
+        "properties": {
+          "restaurant_id": {"type": "integer"},
+          "items": {"type": "array", "items": {"$ref": "#/components/schemas/MenuItem"}},
+          "total": {"type": "integer"}
+        }
+      },
+      "CartItem": {
+        "type": "object",
+        "required": ["menu_item_id", "quantity"],
+        "properties": {
+          "menu_item_id": {"type": "integer"},
+          "quantity": {"type": "integer", "minimum": 1}
+        }
+      },
+      "Cart": {
+        "type": "object",
+        "required": ["id", "user_id", "restaurant_id", "items", "total"],
+        "properties": {
+          "id": {"type": "integer"},
+          "user_id": {"type": "integer"},
+          "restaurant_id": {"type": "integer"},
+          "items": {"type": "array", "items": {"$ref": "#/components/schemas/CartItem"}},
+          "total": {"type": "number", "format": "float"},
+          "created_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "user_id", "restaurant_id", "items", "total", "status"],
+        "properties": {
+          "id": {"type": "integer"},
+          "user_id": {"type": "integer"},
+          "restaurant_id": {"type": "integer"},
+          "items": {"type": "array", "items": {"$ref": "#/components/schemas/CartItem"}},
+          "total": {"type": "number", "format": "float"},
+          "status": {"type": "string", "enum": ["pending", "confirmed", "preparing", "delivering", "delivered", "cancelled"]},
+          "delivery_address": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "estimated_delivery": {"type": "string", "format": "date-time"},
+          "driver_name": {"type": "string"}
+        }
+      },
+      "OrderListResponse": {
+        "type": "object",
+        "required": ["orders", "total"],
+        "properties": {
+          "orders": {"type": "array", "items": {"$ref": "#/components/schemas/Order"}},
+          "total": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "offset": {"type": "integer"}
+        }
+      },
+      "Review": {
+        "type": "object",
+        "required": ["id", "user_id", "restaurant_id", "order_id", "rating", "comment"],
+        "properties": {
+          "id": {"type": "integer"},
+          "user_id": {"type": "integer"},
+          "restaurant_id": {"type": "integer"},
+          "order_id": {"type": "integer"},
+          "rating": {"type": "integer", "minimum": 1, "maximum": 5},
+          "comment": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "ReviewListResponse": {
+        "type": "object",
+        "required": ["restaurant_id", "reviews", "total", "average_rating"],
+        "properties": {
+          "restaurant_id": {"type": "integer"},
+          "reviews": {"type": "array", "items": {"$ref": "#/components/schemas/Review"}},
+          "total": {"type": "integer"},
+          "average_rating": {"type": "number", "format": "float"}
+        }
+      },
+      "DeliveryStatus": {
+        "type": "object",
+        "required": ["order_id", "status"],
+        "properties": {
+          "order_id": {"type": "integer"},
+          "status": {"type": "string"},
+          "driver_name": {"type": "string"},
+          "driver_phone": {"type": "string"},
+          "eta": {"type": "string", "format": "date-time"},
+          "latitude": {"type": "number", "format": "float"},
+          "longitude": {"type": "number", "format": "float"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "UserProfile": {
+        "type": "object",
+        "required": ["user", "order_count", "total_spent"],
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "integer"},
+              "name": {"type": "string"},
+              "email": {"type": "string"},
+              "phone": {"type": "string"},
+              "address": {"type": "string"}
+            }
+          },
+          "order_count": {"type": "integer"},
+          "total_spent": {"type": "number", "format": "float"},
+          "member_since": {"type": "string", "format": "date-time"}
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": ["query", "restaurants", "menu_items"],
+        "properties": {
+          "query": {"type": "string"},
+          "restaurants": {"type": "array", "items": {"$ref": "#/components/schemas/Restaurant"}},
+          "menu_items": {"type": "array", "items": {"$ref": "#/components/schemas/MenuItem"}}
+        }
+      },
+      "AddToCartRequest": {
+        "type": "object",
+        "required": ["menu_item_id", "quantity"],
+        "properties": {
+          "menu_item_id": {"type": "integer"},
+          "quantity": {"type": "integer", "minimum": 1, "maximum": 20}
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": ["delivery_address"],
+        "properties": {
+          "delivery_address": {"type": "string"}
+        }
+      },
+      "UpdateStatusRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"type": "string", "enum": ["confirmed", "preparing", "delivering", "delivered", "cancelled"]},
+          "driver_name": {"type": "string"}
+        }
+      },
+      "CreateReviewRequest": {
+        "type": "object",
+        "required": ["restaurant_id", "order_id", "rating", "comment"],
+        "properties": {
+          "restaurant_id": {"type": "integer"},
+          "order_id": {"type": "integer"},
+          "rating": {"type": "integer", "minimum": 1, "maximum": 5},
+          "comment": {"type": "string", "minLength": 1}
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string"}
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {"type": "string"},
+          "app": {"type": "string"}
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HealthResponse"}}}
+          }
+        }
+      }
+    },
+    "/api/restaurants": {
+      "get": {
+        "operationId": "listRestaurants",
+        "summary": "List restaurants with filtering and pagination",
+        "parameters": [
+          {"name": "cuisine", "in": "query", "schema": {"type": "string"}, "description": "Filter by cuisine type"},
+          {"name": "search", "in": "query", "schema": {"type": "string"}, "description": "Search by name or cuisine"},
+          {"name": "open", "in": "query", "schema": {"type": "string", "enum": ["true", "false"]}, "description": "Filter by open status"},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 20, "maximum": 100}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0}}
+        ],
+        "responses": {
+          "200": {
+            "description": "List of restaurants",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RestaurantListResponse"}}}
+          }
+        }
+      }
+    },
+    "/api/restaurants/{restaurant_id}": {
+      "get": {
+        "operationId": "getRestaurant",
+        "summary": "Get restaurant by ID",
+        "parameters": [
+          {"name": "restaurant_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaurant details",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Restaurant"}}}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/restaurants/{restaurant_id}/menu": {
+      "get": {
+        "operationId": "getMenu",
+        "summary": "Get restaurant menu items",
+        "parameters": [
+          {"name": "restaurant_id", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "category", "in": "query", "schema": {"type": "string"}, "description": "Filter by category"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Menu items",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MenuResponse"}}}
+          },
+          "404": {
+            "description": "Restaurant not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/restaurants/{restaurant_id}/reviews": {
+      "get": {
+        "operationId": "getRestaurantReviews",
+        "summary": "Get reviews for a restaurant",
+        "parameters": [
+          {"name": "restaurant_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaurant reviews with average rating",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ReviewListResponse"}}}
+          }
+        }
+      }
+    },
+    "/api/menu/{item_id}": {
+      "get": {
+        "operationId": "getMenuItem",
+        "summary": "Get a single menu item by ID",
+        "parameters": [
+          {"name": "item_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Menu item details",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MenuItem"}}}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/cart": {
+      "get": {
+        "operationId": "getCart",
+        "summary": "Get current user's cart",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Current cart",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Cart"}}}
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearCart",
+        "summary": "Clear the cart",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {"description": "Cart cleared"},
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/cart/items": {
+      "post": {
+        "operationId": "addToCart",
+        "summary": "Add item to cart",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AddToCartRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Updated cart",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Cart"}}}
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "summary": "List user's orders with filtering",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["pending", "confirmed", "preparing", "delivering", "delivered", "cancelled"]}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 20}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0}}
+        ],
+        "responses": {
+          "200": {
+            "description": "List of orders",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/OrderListResponse"}}}
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOrder",
+        "summary": "Create order from cart",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateOrderRequest"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Order created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Order"}}}
+          },
+          "400": {
+            "description": "Cart empty or invalid",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}": {
+      "get": {
+        "operationId": "getOrder",
+        "summary": "Get order details",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "order_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Order"}}}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}/status": {
+      "patch": {
+        "operationId": "updateOrderStatus",
+        "summary": "Update order status (admin/driver)",
+        "parameters": [
+          {"name": "order_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateStatusRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Updated order",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Order"}}}
+          },
+          "400": {
+            "description": "Invalid status",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Order not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}/tracking": {
+      "get": {
+        "operationId": "getOrderTracking",
+        "summary": "Get live delivery tracking for an order",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "order_id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery tracking info",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeliveryStatus"}}}
+          },
+          "404": {
+            "description": "Order not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/reviews": {
+      "post": {
+        "operationId": "createReview",
+        "summary": "Submit a review for a delivered order",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateReviewRequest"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Review created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Review"}}}
+          },
+          "400": {
+            "description": "Invalid review or order not eligible",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "Duplicate review",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/user/profile": {
+      "get": {
+        "operationId": "getUserProfile",
+        "summary": "Get current user's profile with order stats",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserProfile"}}}
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Search restaurants and menu items",
+        "parameters": [
+          {"name": "q", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Search query"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SearchResponse"}}}
+          },
+          "400": {
+            "description": "Missing query",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    }
+  }
+}

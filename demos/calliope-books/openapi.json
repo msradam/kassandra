@@ -245,6 +245,172 @@
           }
         }
       }
+    },
+    "/api/authors": {
+      "get": {
+        "summary": "List all authors with book counts and ratings",
+        "operationId": "listAuthors",
+        "responses": {
+          "200": {
+            "description": "List of authors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "book_count": { "type": "integer" },
+                          "avg_rating": { "type": "number" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/authors/{name}/books": {
+      "get": {
+        "summary": "Get all books by a specific author",
+        "operationId": "getAuthorBooks",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Author's books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "author": { "type": "string" },
+                    "books": { "type": "array", "items": { "$ref": "#/components/schemas/BookOut" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Author not found",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/wishlist": {
+      "get": {
+        "summary": "Get user's wishlist",
+        "operationId": "getWishlist",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Wishlist books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "books": { "type": "array", "items": { "$ref": "#/components/schemas/BookOut" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add book to wishlist",
+        "operationId": "addToWishlist",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["book_id"],
+                "properties": {
+                  "book_id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Added to wishlist" },
+          "404": {
+            "description": "Book not found",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "409": {
+            "description": "Already in wishlist",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/wishlist/{bookId}": {
+      "delete": {
+        "summary": "Remove book from wishlist",
+        "operationId": "removeFromWishlist",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "bookId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "204": { "description": "Removed from wishlist" },
+          "404": {
+            "description": "Book not in wishlist",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "summary": "Get bookstore statistics",
+        "operationId": "getStats",
+        "responses": {
+          "200": {
+            "description": "Bookstore stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "books": { "type": "integer" },
+                    "reviews": { "type": "integer" },
+                    "users": { "type": "integer" },
+                    "avg_rating": { "type": "number" },
+                    "top_genres": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "genre": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
