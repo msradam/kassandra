@@ -147,6 +147,15 @@ fi
 
 # ── Step 6: Generate markdown report from k6 JSON ──
 JSON_RESULT="k6/kassandra/results/${REPORT_NAME}.json"
+# Fallback: if JSON not at expected path, find the most recent one
+if [ ! -f "$JSON_RESULT" ]; then
+  echo "JSON not found at $JSON_RESULT, searching..."
+  JSON_RESULT=$(find k6/kassandra/results/ -name "*.json" -newer "$SCRIPT_PATH" 2>/dev/null | head -1)
+  if [ -n "$JSON_RESULT" ]; then
+    echo "Found: $JSON_RESULT"
+    REPORT_NAME=$(basename "$JSON_RESULT" .json)
+  fi
+fi
 if [ -f "$JSON_RESULT" ]; then
   PYTHON=$(command -v python3.12 || command -v python3)
   BASELINE_DIR=".kassandra/baselines"
@@ -167,7 +176,8 @@ if [ -f "$JSON_RESULT" ]; then
     REPORT_ARGS="$REPORT_ARGS --risk-report $RISK_REPORT"
   fi
 
-  $PYTHON scripts/generate-report.py $REPORT_ARGS > /dev/null 2>&1 || echo "WARNING: Report generation failed"
+  echo "Generating report: $PYTHON scripts/generate-report.py $REPORT_ARGS"
+  $PYTHON scripts/generate-report.py $REPORT_ARGS 2>&1 | tail -3 || echo "WARNING: Report generation failed"
   MD_RESULT="k6/kassandra/results/${REPORT_NAME}-report.md"
   if [ -f "$MD_RESULT" ]; then
     echo ""
