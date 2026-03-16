@@ -294,9 +294,6 @@ def _get_graphrag_context(spec_path: str) -> str | None:
         context = retriever.for_endpoints(endpoints)
         text = context.to_text()
 
-        # Also include the full spec as JSON for endpoints the graph found
-        context_dict = context.to_dict()
-
         full_spec_chars = len(json.dumps(spec, indent=2))
         context_chars = len(text)
         ratio = (context_chars / full_spec_chars * 100) if full_spec_chars else 0
