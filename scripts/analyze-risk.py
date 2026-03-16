@@ -8,6 +8,7 @@ Usage:
 Outputs a markdown section with flagged risks, suitable for embedding in
 the Kassandra report or posting as a separate MR comment.
 """
+from __future__ import annotations
 
 import re
 import sys

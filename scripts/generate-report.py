@@ -8,6 +8,8 @@ Reads k6 handleSummary JSON, writes a .md report alongside it, prints to stdout.
 This runs AFTER k6 — the agent does NOT need to generate the report formatting.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
