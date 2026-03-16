@@ -126,10 +126,15 @@ fi
 # ── Step 6: Generate markdown report from k6 JSON ──
 JSON_RESULT="k6/kassandra/results/${REPORT_NAME}.json"
 if [ -f "$JSON_RESULT" ]; then
-  echo ""
-  echo "Generating markdown report..."
   PYTHON=$(command -v python3.12 || command -v python3)
-  $PYTHON scripts/generate-report.py "$JSON_RESULT" 2>&1 || echo "WARNING: Report generation failed"
+  $PYTHON scripts/generate-report.py "$JSON_RESULT" > /dev/null 2>&1 || echo "WARNING: Report generation failed"
+  MD_RESULT="k6/kassandra/results/${REPORT_NAME}-report.md"
+  if [ -f "$MD_RESULT" ]; then
+    echo ""
+    echo "=== KASSANDRA REPORT START ==="
+    cat "$MD_RESULT"
+    echo "=== KASSANDRA REPORT END ==="
+  fi
 fi
 
 # ── Step 7: Show results ──
