@@ -161,13 +161,14 @@ KASSANDRA_PROJECT=midas-bank ANTHROPIC_API_KEY=... uv run python -m simulator
 
 Across multiple MR runs on GitLab:
 
-| MR | Feature | Requests | Duration | Thresholds | Self-corrections |
-|----|---------|----------|----------|------------|-----------------|
-| !36 | Transfer rate limiting | 1,650 | 60s | 10/10 pass | 0 |
-| !37 | Spending summary | 863 | 60s | 8/8 pass | 0 |
-| !38 | Deposit limits | 328 | 30s | 8/8 pass | 0 |
+| MR | App | Feature | Requests | Duration | Thresholds | Outcome |
+|----|-----|---------|----------|----------|------------|---------|
+| !36 | Midas Bank (Python) | Transfer rate limiting | 1,650 | 60s | 10/10 pass | Clean |
+| !37 | Midas Bank (Python) | Spending summary | 863 | 60s | 8/8 pass | Clean |
+| !38 | Midas Bank (Python) | Deposit limits | 328 | 30s | 8/8 pass | Clean |
+| !39 | Calliope Books (Node) | Search suggestions | 576 | 25s | 0/8 fail | **Caught real bug** |
 
-Zero self-correction commits (no "fix: remove external import" patches). The agent gets it right on the first try.
+MR !39 demonstrates Kassandra's real value: the agent detected a 100% failure rate on a new endpoint, correctly diagnosed an Express.js route ordering bug (`/api/books/suggestions` shadowed by `/api/books/:id`), and recommended the exact fix — all autonomously.
 
 ## License
 
