@@ -18,11 +18,18 @@ APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch
 BASE_URL="${3:-}"
 BRANCH="${4:-}"
 
-# ── Step 0: Checkout MR source branch if specified ──
+# ── Step 0: Preserve scripts from main, then checkout MR source branch ──
+# Scripts must stay at the main branch version even when we checkout the MR branch,
+# because the MR branch may not have the latest report generator / risk analyzer.
+SCRIPTS_TMP=$(mktemp -d)
+cp -r scripts/ "$SCRIPTS_TMP/"
 if [ -n "$BRANCH" ]; then
   echo "Checking out branch: $BRANCH"
   git fetch origin "$BRANCH" 2>/dev/null || git fetch 2>/dev/null || true
   git checkout "$BRANCH" 2>/dev/null || git checkout "origin/$BRANCH" 2>/dev/null || echo "WARNING: Could not checkout $BRANCH"
+  # Restore scripts from main
+  cp -r "$SCRIPTS_TMP/scripts/"* scripts/
+  echo "Restored scripts from main branch."
 fi
 
 REPORT_NAME=$(basename "$SCRIPT_PATH" .js)
@@ -36,6 +43,7 @@ cleanup() {
     wait "$APP_PID" 2>/dev/null || true
     echo "App stopped."
   fi
+  rm -rf "$SCRIPTS_TMP" 2>/dev/null || true
 }
 trap cleanup EXIT
 
