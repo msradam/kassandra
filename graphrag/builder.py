@@ -162,6 +162,10 @@ def _add_properties(G: nx.DiGraph, schema_name: str, schema_def: dict,
     for prop_name, prop_def in properties.items():
         prop_node = f"{schema_name}.{prop_name}"
         prop_type = prop_def.get("type", "")
+        if not prop_type and "anyOf" in prop_def:
+            prop_type = "|".join(
+                t.get("type", "unknown") for t in prop_def["anyOf"] if isinstance(t, dict)
+            )
 
         # Check if property references another schema
         ref = _resolve_ref(prop_def)
