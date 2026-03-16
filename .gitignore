@@ -26,3 +26,6 @@ simulator/output/
 k6/kassandra/
 demos/*/k6/kassandra/
 summary.json
+
+# Tool configs
+openapitools.json
