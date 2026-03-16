@@ -9,6 +9,7 @@ This runs AFTER k6 — the agent does NOT need to generate the report formatting
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -49,25 +50,94 @@ def _extract_checks(group: dict, prefix: str = "") -> list[dict]:
     return results
 
 
+def _collect_endpoint_metrics(metrics: dict) -> dict[str, dict]:
+    """Collect per-endpoint latency from tagged http_req_duration OR custom Trends.
+
+    k6 handleSummary sometimes reports 0 for tagged metrics like
+    http_req_duration{endpoint:X} while custom Trend metrics (e.g.,
+    spending_summary_latency) have the real values. This function merges both
+    sources, preferring non-zero tagged metrics when available.
+    """
+    endpoint_metrics = {}
+
+    # Source 1: tagged http_req_duration{endpoint:X}
+    for key, metric in metrics.items():
+        if not key.startswith("http_req_duration{endpoint:"):
+            continue
+        if metric.get("type") != "trend":
+            continue
+        ep_name = key.split("endpoint:", 1)[1].rstrip("}")
+        vals = metric.get("values", {})
+        if vals.get("avg", 0) > 0:
+            endpoint_metrics[ep_name] = vals
+
+    # Source 2: custom Trend metrics named like *_latency or *_duration
+    # These are the agent's per-endpoint custom metrics
+    for key, metric in metrics.items():
+        if metric.get("type") != "trend":
+            continue
+        if "{" in key:
+            continue
+        # Skip built-in k6 metrics
+        if key.startswith(("http_req_", "http_reqs", "iteration", "group_", "data_")):
+            continue
+        vals = metric.get("values", {})
+        if vals.get("avg", 0) <= 0:
+            continue
+        # Derive endpoint name from metric name: spending_summary_latency -> spending_summary
+        ep_name = re.sub(r'_(latency|duration|time)$', '', key)
+        # Only use if we don't already have non-zero tagged data for this endpoint
+        if ep_name not in endpoint_metrics:
+            endpoint_metrics[ep_name] = vals
+
+    return endpoint_metrics
+
+
 def format_report(data: dict) -> str:
     lines = []
     duration = data["state"]["testRunDurationMs"] / 1000
     metrics = data.get("metrics", {})
 
-    # ── Summary
+    # ── Executive Summary
     http_reqs = metrics.get("http_reqs", {}).get("values", {})
     http_failed = metrics.get("http_req_failed", {}).get("values", {})
     data_recv = metrics.get("data_received", {}).get("values", {})
     data_sent = metrics.get("data_sent", {}).get("values", {})
     dropped = metrics.get("dropped_iterations", {}).get("values", {})
     vus_max = metrics.get("vus_max", {}).get("values", {})
+    global_duration = metrics.get("http_req_duration", {}).get("values", {})
 
     total_reqs = http_reqs.get("count", 0)
     rps = http_reqs.get("rate", 0)
     fail_rate = http_failed.get("rate", 0)
     fail_count = http_failed.get("fails", 0)
 
+    # Count thresholds
+    thresh_pass = 0
+    thresh_fail = 0
+    for metric in metrics.values():
+        for result in (metric.get("thresholds") or {}).values():
+            if result["ok"]:
+                thresh_pass += 1
+            else:
+                thresh_fail += 1
+    all_pass = thresh_fail == 0
+
+    # Collect endpoint metrics (handles tagged metrics showing 0)
+    endpoint_metrics = _collect_endpoint_metrics(metrics)
+
     lines.append("## 🔮 Kassandra Performance Report\n")
+
+    # One-line verdict
+    ep_count = len(endpoint_metrics)
+    if all_pass:
+        verdict = f"✅ **PASS** — All thresholds met"
+    else:
+        verdict = f"❌ **FAIL** — {thresh_fail} threshold{'s' if thresh_fail != 1 else ''} breached"
+    if ep_count:
+        verdict += f" | {ep_count} endpoint{'s' if ep_count != 1 else ''} tested"
+    verdict += f" | {total_reqs:,} requests in {duration:.0f}s"
+    lines.append(f"> {verdict}\n")
 
     # Summary table
     lines.append("### Summary\n")
@@ -88,15 +158,12 @@ def format_report(data: dict) -> str:
 
     # ── Threshold results
     threshold_rows = []
-    all_pass = True
     for key, metric in sorted(metrics.items()):
         thresholds = metric.get("thresholds")
         if not thresholds:
             continue
         for expr, result in thresholds.items():
             ok = result["ok"]
-            if not ok:
-                all_pass = False
             # Clean up metric name for display
             display_name = key
             if "{" in key:
@@ -114,17 +181,6 @@ def format_report(data: dict) -> str:
         lines.append("")
 
     # ── Per-endpoint latency table
-    endpoint_metrics = {}
-    global_duration = None
-    for key, metric in metrics.items():
-        if metric.get("type") != "trend" or metric.get("contains") != "time":
-            continue
-        if key == "http_req_duration":
-            global_duration = metric["values"]
-        elif key.startswith("http_req_duration{endpoint:"):
-            ep_name = key.split("endpoint:", 1)[1].rstrip("}")
-            endpoint_metrics[ep_name] = metric["values"]
-
     lines.append("### Latency Distribution\n")
     lines.append("| Endpoint | Avg | Med | p90 | p95 | p99 | Max |")
     lines.append("|----------|-----|-----|-----|-----|-----|-----|")
@@ -137,11 +193,41 @@ def format_report(data: dict) -> str:
         )
     for ep_name, v in sorted(endpoint_metrics.items()):
         lines.append(
-            f"| {ep_name} | {_fmt(v['avg'])} | {_fmt(v['med'])} | "
+            f"| {ep_name} | {_fmt(v.get('avg'))} | {_fmt(v.get('med'))} | "
             f"{_fmt(v.get('p(90)'))} | {_fmt(v.get('p(95)'))} | "
-            f"{_fmt(v.get('p(99)'))} | {_fmt(v['max'])} |"
+            f"{_fmt(v.get('p(99)'))} | {_fmt(v.get('max'))} |"
         )
     lines.append("")
+
+    # ── Mermaid: latency percentile distribution (global)
+    if global_duration:
+        v = global_duration
+        lines.append("### Latency Percentiles\n")
+        lines.append("```mermaid")
+        lines.append("xychart-beta")
+        lines.append('  title "Response Time Distribution (ms)"')
+        lines.append('  x-axis ["min", "avg", "med", "p90", "p95", "max"]')
+        lines.append('  y-axis "Latency (ms)"')
+        bars = [
+            v.get("min", 0), v.get("avg", 0), v.get("med", 0),
+            v.get("p(90)", 0), v.get("p(95)", 0), v.get("max", 0),
+        ]
+        lines.append(f"  bar [{', '.join(_fmt(b) for b in bars)}]")
+        lines.append("```\n")
+
+    # ── Mermaid: per-endpoint p95 comparison bar chart
+    if endpoint_metrics:
+        lines.append("### p95 Latency by Endpoint\n")
+        lines.append("```mermaid")
+        lines.append("xychart-beta")
+        lines.append('  title "p95 Latency by Endpoint (ms)"')
+        ep_names = sorted(endpoint_metrics.keys())
+        labels = ", ".join(f'"{n}"' for n in ep_names)
+        p95_vals = ", ".join(_fmt(endpoint_metrics[n].get("p(95)", 0)) for n in ep_names)
+        lines.append(f"  x-axis [{labels}]")
+        lines.append('  y-axis "Response Time (ms)"')
+        lines.append(f"  bar [{p95_vals}]")
+        lines.append("```\n")
 
     # ── Timing breakdown (where time is spent)
     timing_keys = [
@@ -153,6 +239,7 @@ def format_report(data: dict) -> str:
         ("http_req_receiving", "Receiving"),
     ]
     timing_rows = []
+    timing_chart_data = []
     for metric_key, label in timing_keys:
         m = metrics.get(metric_key)
         if m and m.get("type") == "trend":
@@ -160,6 +247,7 @@ def format_report(data: dict) -> str:
             avg = v.get("avg", 0)
             if avg > 0.01:  # only show non-trivial phases
                 timing_rows.append(f"| {label} | {_fmt(avg)} | {_fmt(v.get('p(95)'))} | {_fmt(v['max'])} |")
+                timing_chart_data.append((label, avg))
 
     if timing_rows:
         lines.append("### Timing Breakdown\n")
@@ -167,6 +255,14 @@ def format_report(data: dict) -> str:
         lines.append("|-------|----------|----------|----------|")
         lines.extend(timing_rows)
         lines.append("")
+
+    # Mermaid pie chart for timing breakdown (where time goes)
+    if len(timing_chart_data) >= 2:
+        lines.append("```mermaid")
+        lines.append('pie title "Where Time is Spent (avg ms)"')
+        for label, avg in timing_chart_data:
+            lines.append(f'  "{label} ({_fmt(avg)}ms)" : {avg:.2f}')
+        lines.append("```\n")
 
     # ── Custom business metrics
     builtin_prefixes = (
@@ -196,32 +292,6 @@ def format_report(data: dict) -> str:
         lines.append("|--------|------|-------|")
         lines.extend(custom_rows)
         lines.append("")
-
-    # ── Mermaid: per-endpoint latency comparison chart
-    if endpoint_metrics:
-        lines.append("### Latency by Endpoint\n")
-        lines.append("```mermaid")
-        lines.append("xychart-beta")
-        lines.append('  title "p95 Latency by Endpoint (ms)"')
-        ep_names = sorted(endpoint_metrics.keys())
-        labels = ", ".join(f'"{n}"' for n in ep_names)
-        p95_vals = ", ".join(_fmt(endpoint_metrics[n].get("p(95)", 0)) for n in ep_names)
-        lines.append(f"  x-axis [{labels}]")
-        lines.append('  y-axis "Response Time (ms)"')
-        lines.append(f"  bar [{p95_vals}]")
-        lines.append("```\n")
-    elif global_duration:
-        # Fallback: show global latency distribution
-        v = global_duration
-        lines.append("### Latency Distribution\n")
-        lines.append("```mermaid")
-        lines.append("xychart-beta")
-        lines.append('  title "HTTP Request Latency (ms)"')
-        lines.append('  x-axis ["min", "avg", "med", "p90", "p95", "p99", "max"]')
-        lines.append('  y-axis "Response Time (ms)"')
-        bars = [v["min"], v["avg"], v["med"], v.get("p(90)", 0), v.get("p(95)", 0), v.get("p(99)", 0), v["max"]]
-        lines.append(f"  bar [{', '.join(_fmt(b) for b in bars)}]")
-        lines.append("```\n")
 
     # ── Mermaid: check results pie chart
     checks_metric = metrics.get("checks")
@@ -258,7 +328,7 @@ def format_report(data: dict) -> str:
             lines.append("")
         lines.append("</details>\n")
 
-    # ── Scenarios info (if present)
+    # ── Scenario configuration (collapsible) with Gantt timeline
     options = data.get("options", {})
     scenarios = options.get("scenarios", {})
     if scenarios:
@@ -266,14 +336,41 @@ def format_report(data: dict) -> str:
         lines.append("<summary><strong>Scenario Configuration</strong></summary>\n")
         lines.append("| Scenario | Executor | Rate | Duration |")
         lines.append("|----------|----------|------|----------|")
+        gantt_tasks = []
         for name, cfg in scenarios.items():
             executor = cfg.get("executor", "?")
             rate = cfg.get("rate", cfg.get("startRate", "—"))
             dur = cfg.get("duration", "—")
             if "stages" in cfg:
                 stages = cfg["stages"]
-                dur = f"{len(stages)} stages"
+                dur_str = f"{len(stages)} stages"
+                # Calculate total stage duration for Gantt
+                total_secs = sum(int(s["duration"].rstrip("s")) for s in stages if isinstance(s.get("duration"), str))
+                dur = dur_str
+            else:
+                total_secs = int(dur.rstrip("s")) if isinstance(dur, str) and dur.endswith("s") else 0
             lines.append(f"| {name} | {executor} | {rate}/s | {dur} |")
+
+            # Build Gantt data
+            start_time = cfg.get("startTime", "0s")
+            start_secs = int(start_time.rstrip("s")) if isinstance(start_time, str) and start_time.endswith("s") else 0
+            if total_secs > 0:
+                gantt_tasks.append((name, start_secs, total_secs))
+
+        lines.append("")
+
+        # Mermaid Gantt chart for scenario timeline
+        if gantt_tasks:
+            lines.append("```mermaid")
+            lines.append("gantt")
+            lines.append("  title Load Test Timeline")
+            lines.append("  dateFormat ss")
+            lines.append("  axisFormat %Ss")
+            for name, start, dur in gantt_tasks:
+                # Gantt uses relative format: task name :start, duration
+                lines.append(f"  {name} : {start:02d}, {dur}s")
+            lines.append("```")
+
         lines.append("\n</details>\n")
 
     lines.append("---")

@@ -92,8 +92,11 @@ class SubgraphRetriever:
 
                 elif rel == "HAS_PARAM":
                     param_data = G.nodes[neighbor]
+                    param_name = param_data.get("name", "")
+                    if param_name.lower() == "authorization" and param_data.get("location", "") == "header":
+                        needs_auth = True
                     all_params.append({
-                        "name": param_data.get("name", ""),
+                        "name": param_name,
                         "type": param_data.get("param_type", "string"),
                         "in": param_data.get("location", "query"),
                         "required": param_data.get("required", False),
@@ -195,6 +198,10 @@ def _paths_match(actual: str, template: str) -> bool:
     - Direct match: '/api/books' == '/api/books'
     - Express params: '/api/books/:id/reviews' matches '/api/books/{id}/reviews'
     - Concrete values: '/api/accounts/1' matches '/api/accounts/{account_id}'
+
+    Does NOT match named path segments against {param} placeholders —
+    e.g., '/api/books/suggestions' will NOT match '/api/books/{id}'
+    because 'suggestions' looks like a distinct route, not a parameter value.
     """
     actual = actual.rstrip("/")
     template = template.rstrip("/")
@@ -205,14 +212,28 @@ def _paths_match(actual: str, template: str) -> bool:
     if actual == template:
         return True
 
-    # Build regex from template: split on {param} segments, escape literal parts
-    parts = re.split(r'(\{[^}]+\})', template)
-    regex_parts = []
-    for part in parts:
-        if part.startswith("{") and part.endswith("}"):
-            regex_parts.append("[^/]+")
-        else:
-            regex_parts.append(re.escape(part))
-    pattern = "^" + "".join(regex_parts) + "$"
+    # Segment-level comparison to avoid false positives
+    actual_parts = actual.split("/")
+    template_parts = template.split("/")
 
-    return bool(re.match(pattern, actual))
+    if len(actual_parts) != len(template_parts):
+        return False
+
+    for a, t in zip(actual_parts, template_parts):
+        if a == t:
+            continue
+        if t.startswith("{") and t.endswith("}"):
+            # Only match concrete values (numeric, UUIDs) or Express/OpenAPI params
+            # against template params. Named segments like 'suggestions' are
+            # distinct routes, not parameter values.
+            if a.startswith("{") and a.endswith("}"):
+                continue  # Both are params — match
+            if re.fullmatch(r'[\d]+', a):
+                continue  # Numeric ID — match
+            if re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', a, re.IGNORECASE):
+                continue  # UUID — match
+            return False  # Named segment like 'suggestions' — NOT a match
+        else:
+            return False  # Literal mismatch
+
+    return True
