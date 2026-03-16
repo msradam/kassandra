@@ -236,6 +236,27 @@ app.delete('/api/books/:id', authenticate, (req, res) => {
   res.status(204).end();
 });
 
+// ── Search suggestions ──
+
+app.get('/api/books/suggestions', (req, res) => {
+  const { q, limit = 5 } = req.query;
+  if (!q || q.length < 2) {
+    return res.status(400).json({ error: 'Query parameter "q" must be at least 2 characters' });
+  }
+  const suggestions = all(`
+    SELECT b.id, b.title, b.author, b.genre,
+           COALESCE(ROUND(AVG(r.rating), 1), 0) as avg_rating,
+           COUNT(r.id) as review_count
+    FROM books b
+    LEFT JOIN reviews r ON r.book_id = b.id
+    WHERE b.title LIKE ? OR b.author LIKE ?
+    GROUP BY b.id
+    ORDER BY review_count DESC, b.title ASC
+    LIMIT ?
+  `, [`%${q}%`, `%${q}%`, Number(limit)]);
+  res.json({ suggestions, query: q, count: suggestions.length });
+});
+
 // ── Reviews routes ──
 
 app.get('/api/books/:id/reviews', (req, res) => {

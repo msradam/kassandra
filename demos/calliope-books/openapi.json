@@ -185,6 +185,34 @@
         }
       }
     },
+    "/api/books/suggestions": {
+      "get": {
+        "summary": "Search suggestions with ratings",
+        "operationId": "bookSuggestions",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestions with ratings",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuggestionsResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Query too short",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/books/{id}/reviews": {
       "get": {
         "summary": "List reviews for a book",
@@ -348,6 +376,28 @@
           "query": { "type": "string" },
           "count": { "type": "integer" },
           "total": { "type": "integer" }
+        }
+      },
+      "SuggestionOut": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "genre": { "type": "string" },
+          "avg_rating": { "type": "number" },
+          "review_count": { "type": "integer" }
+        }
+      },
+      "SuggestionsResponse": {
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SuggestionOut" }
+          },
+          "query": { "type": "string" },
+          "count": { "type": "integer" }
         }
       },
       "ReviewCreate": {
