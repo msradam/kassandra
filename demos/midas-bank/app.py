@@ -317,15 +317,29 @@ def transfer(req: TransferRequest, user=Depends(get_current_user), db=Depends(ge
     return dict(tx)
 
 
+DEPOSIT_LIMIT = 10_000.00
+DAILY_DEPOSIT_CAP = 50_000.00
+
+
 @app.post("/api/transactions/deposit", status_code=201, response_model=TransactionOut)
 def deposit(req: DepositRequest, user=Depends(get_current_user), db=Depends(get_db)):
     if req.amount <= 0:
         raise HTTPException(400, "Amount must be positive")
+    if req.amount > DEPOSIT_LIMIT:
+        raise HTTPException(400, f"Single deposit cannot exceed ${DEPOSIT_LIMIT:,.2f}")
     acct = db.execute(
         "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (req.account_id, user["id"])
     ).fetchone()
     if not acct:
         raise HTTPException(404, "Account not found")
+    # Check daily deposit cap
+    daily_total = db.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE to_account_id = ? AND type = 'deposit' AND created_at >= datetime('now', '-1 day')",
+        (req.account_id,),
+    ).fetchone()[0]
+    if daily_total + req.amount > DAILY_DEPOSIT_CAP:
+        remaining = DAILY_DEPOSIT_CAP - daily_total
+        raise HTTPException(400, f"Daily deposit cap exceeded. Remaining: ${remaining:,.2f}")
     db.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (req.amount, req.account_id))
     cur = db.execute(
         "INSERT INTO transactions (to_account_id, amount, type, description) VALUES (?, ?, 'deposit', ?)",
