@@ -14,10 +14,10 @@
         }
       },
       "latest_sync": {
-        "git_tag": "v0.36.0",
-        "catalog_version": "1.22.0",
-        "synced_at": "2026-03-16T00:57:29.772Z",
-        "definition_hash": "134cee496beb146e"
+        "git_tag": "v0.41.0",
+        "catalog_version": "1.23.0",
+        "synced_at": "2026-03-16T05:02:10.412Z",
+        "definition_hash": "6017c3548985ee93"
       }
     }
   },
@@ -35,10 +35,10 @@
         }
       },
       "latest_sync": {
-        "git_tag": "v0.38.0",
-        "catalog_version": "1.13.0",
-        "synced_at": "2026-03-16T03:49:36.552Z",
-        "definition_hash": "7498af1457a351a3"
+        "git_tag": "v0.41.0",
+        "catalog_version": "1.14.0",
+        "synced_at": "2026-03-16T05:02:11.050Z",
+        "definition_hash": "02479373c25829a7"
       }
     }
   }
