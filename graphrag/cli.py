@@ -41,8 +41,6 @@ def _format_traversal(graph: OpenAPIGraph, retriever: SubgraphRetriever, endpoin
         # Show edges from this endpoint
         for _, neighbor, edge_data in G.edges(ep, data=True):
             rel = edge_data.get("relation", "")
-            node_type = G.nodes[neighbor].get("type", "?")
-
             if rel == "RETURNS":
                 lines.append(f"    ├─ RETURNS → {neighbor} (schema)")
                 _format_schema_tree(G, neighbor, lines, depth=2, indent="    │  ")
