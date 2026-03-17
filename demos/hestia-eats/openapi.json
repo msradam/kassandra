@@ -218,47 +218,6 @@
           "status": {"type": "string"},
           "app": {"type": "string"}
         }
-      },
-      "Promotion": {
-        "type": "object",
-        "required": ["id", "restaurant_id", "title", "discount_pct", "is_active"],
-        "properties": {
-          "id": {"type": "integer"},
-          "restaurant_id": {"type": "integer"},
-          "title": {"type": "string"},
-          "description": {"type": "string"},
-          "discount_pct": {"type": "number", "format": "float"},
-          "min_order": {"type": "number", "format": "float"},
-          "promo_code": {"type": "string"},
-          "is_active": {"type": "boolean"},
-          "starts_at": {"type": "string", "format": "date-time"},
-          "expires_at": {"type": "string", "format": "date-time"},
-          "restaurant_name": {"type": "string"},
-          "restaurant_cuisine": {"type": "string"},
-          "restaurant_rating": {"type": "number", "format": "float"}
-        }
-      },
-      "PromotionListResponse": {
-        "type": "object",
-        "required": ["promotions", "total"],
-        "properties": {
-          "promotions": {"type": "array", "items": {"$ref": "#/components/schemas/Promotion"}},
-          "total": {"type": "integer"}
-        }
-      },
-      "PromotionDetail": {
-        "type": "object",
-        "allOf": [
-          {"$ref": "#/components/schemas/Promotion"},
-          {
-            "type": "object",
-            "properties": {
-              "restaurant": {"$ref": "#/components/schemas/Restaurant"},
-              "menu_items": {"type": "array", "items": {"$ref": "#/components/schemas/MenuItem"}},
-              "menu_item_count": {"type": "integer"}
-            }
-          }
-        ]
       }
     }
   },
@@ -570,41 +529,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/promotions": {
-      "get": {
-        "operationId": "listPromotions",
-        "summary": "List promotions with restaurant enrichment (N+1 pattern)",
-        "parameters": [
-          {"name": "active", "in": "query", "schema": {"type": "string", "enum": ["true", "false"], "default": "true"}, "description": "Filter active promotions only (default true)"},
-          {"name": "restaurant_id", "in": "query", "schema": {"type": "integer"}, "description": "Filter by restaurant"}
-        ],
-        "responses": {
-          "200": {
-            "description": "List of promotions",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionListResponse"}}}
-          }
-        }
-      }
-    },
-    "/api/promotions/{promotion_id}": {
-      "get": {
-        "operationId": "getPromotion",
-        "summary": "Get promotion details with restaurant info and menu items",
-        "parameters": [
-          {"name": "promotion_id", "in": "path", "required": true, "schema": {"type": "integer"}}
-        ],
-        "responses": {
-          "200": {
-            "description": "Promotion details with restaurant and menu",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionDetail"}}}
-          },
-          "404": {
-            "description": "Promotion not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
