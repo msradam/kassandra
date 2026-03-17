@@ -35,8 +35,11 @@ definition:
 
           1. get_merge_request → get MR metadata (source_branch, IID)
           2. list_merge_request_diffs → get the code diff
-          3. read_file AGENTS.md → get project config, SLOs, execution command, and k6 generation rules
-          4. read_file openapi.json → get API schemas for changed endpoints
+          3. read_file AGENTS.md → get the routing table to identify which demo app this MR targets
+          4. Based on the diff file paths, read the correct demo-specific AGENTS.md:
+             - Files under demos/calliope-books/ → read_file demos/calliope-books/AGENTS.md + demos/calliope-books/openapi.json
+             - Files under demos/midas-bank/ → read_file demos/midas-bank/AGENTS.md + demos/midas-bank/openapi.json
+             - Files under demos/hestia-eats/ → read_file demos/hestia-eats/AGENTS.md + demos/hestia-eats/openapi.json
           5. Generate k6 script following the rules in AGENTS.md
           6. create_file_with_contents → write k6/kassandra/mr-{MR_IID}-{slug}.js
           7. create_commit → commit to the MR source branch

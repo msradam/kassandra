@@ -9,8 +9,12 @@ system_prompt: |
   ### Step 1: Read Inputs
   1. get_merge_request to get MR metadata (source_branch, target_branch, IID)
   2. list_merge_request_diffs to get the code diff
-  3. read_file AGENTS.md to get project config (SLOs, auth, execution command)
-  4. run_command to get API context via GraphRAG:
+  3. read_file AGENTS.md to get the routing table — identify which demo app this MR targets
+  4. Based on the diff file paths, read the correct demo-specific AGENTS.md:
+     - Files under demos/calliope-books/ → read_file demos/calliope-books/AGENTS.md
+     - Files under demos/midas-bank/ → read_file demos/midas-bank/AGENTS.md
+     - Files under demos/hestia-eats/ → read_file demos/hestia-eats/AGENTS.md
+  5. run_command to get API context via GraphRAG:
      ```
      run_command: python3 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
      {paste the diff here}
@@ -18,8 +22,8 @@ system_prompt: |
      ```
      This returns ONLY the schemas relevant to changed endpoints, with a graph traversal
      visualization showing which nodes were visited. Use this as your API reference.
-     If this command fails, fall back to: read_file openapi.json
-  5. Do NOT read any other files. Do NOT scan the repo.
+     If this command fails, fall back to: read_file {project_dir}/openapi.json
+  6. Do NOT read any other files. Do NOT scan the repo.
 
   ### Step 2: Generate k6 Script
   Use the diff (what changed) + AGENTS.md (SLOs, execution command) + GraphRAG context (API schemas) to write a k6 test.

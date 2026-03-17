@@ -6,27 +6,19 @@ Kassandra is a project-agnostic performance testing agent. Each demo application
 under `demos/` has its own `AGENTS.md` with project-specific SLOs, auth config,
 critical paths, and test conventions.
 
-### Active Demo Applications
-
-**Calliope Books** (Node.js) — Express bookshop API at **http://localhost:3000**
-**Midas Bank** (Python) — FastAPI banking API at **http://localhost:8000**
-
-Read the project-specific `AGENTS.md` for whichever app the MR targets.
-
-### All Demo Applications
+### Demo Applications
 
 | App | Stack | Directory | AGENTS.md | URL |
 |-----|-------|-----------|-----------|-----|
 | Calliope Books | Node.js / Express / sql.js | `demos/calliope-books/` | `demos/calliope-books/AGENTS.md` | http://localhost:3000 |
 | Midas Bank | Python / FastAPI / pysqlite3 | `demos/midas-bank/` | `demos/midas-bank/AGENTS.md` | http://localhost:8000 |
+| Hestia Eats | Go / net/http / in-memory | `demos/hestia-eats/` | `demos/hestia-eats/AGENTS.md` | http://localhost:8080 |
 
-### How It Works
+### Routing — Which AGENTS.md to Read
 
-When triggered on a merge request, Kassandra:
-1. Reads the relevant `AGENTS.md` for SLOs and conventions
-2. Reads the MR diff to classify changed endpoints
-3. Reads reference k6 tests to match the project's style
-4. Generates, executes, and reports k6 performance tests
+Check the MR diff file paths to determine which demo app is being changed:
+- Files under `demos/calliope-books/` → read `demos/calliope-books/AGENTS.md` and `demos/calliope-books/openapi.json`
+- Files under `demos/midas-bank/` → read `demos/midas-bank/AGENTS.md` and `demos/midas-bank/openapi.json`
+- Files under `demos/hestia-eats/` → read `demos/hestia-eats/AGENTS.md` and `demos/hestia-eats/openapi.json`
 
-The agent adapts to any project — different stacks, different SLOs,
-different auth mechanisms — by reading the project config at runtime.
+**Always use the demo-specific AGENTS.md** — it contains the correct SLOs, auth config, and execution command for that app.
