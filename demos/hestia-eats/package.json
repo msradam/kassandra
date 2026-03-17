@@ -1,0 +1,9 @@
+{
+  "name": "hestia-eats",
+  "version": "1.0.0",
+  "description": "Food delivery platform API — Fastify",
+  "main": "app.js",
+  "dependencies": {
+    "fastify": "^4.25.0"
+  }
+}
