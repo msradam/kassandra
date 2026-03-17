@@ -1,7 +1,7 @@
 # Hestia Eats — Performance Testing Config
 
 ## Application
-Node.js food delivery platform (Fastify, in-memory store, port 8080)
+TypeScript food delivery platform (Hono, in-memory store, port 8080)
 
 ## Auth
 Bearer token: `hestia-bearer-token-2026` (header: `Authorization: Bearer hestia-bearer-token-2026`)
