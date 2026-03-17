@@ -1,9 +1,11 @@
 {
   "name": "hestia-eats",
   "version": "1.0.0",
-  "description": "Food delivery platform API — Fastify",
-  "main": "app.js",
+  "description": "Food delivery platform API — TypeScript / Hono",
+  "main": "app.ts",
   "dependencies": {
-    "fastify": "^4.25.0"
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.8.0",
+    "tsx": "^4.7.0"
   }
 }

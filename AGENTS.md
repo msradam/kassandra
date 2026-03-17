@@ -12,7 +12,7 @@ critical paths, and test conventions.
 |-----|-------|-----------|-----------|-----|
 | Calliope Books | Node.js / Express / sql.js | `demos/calliope-books/` | `demos/calliope-books/AGENTS.md` | http://localhost:3000 |
 | Midas Bank | Python / FastAPI / pysqlite3 | `demos/midas-bank/` | `demos/midas-bank/AGENTS.md` | http://localhost:8000 |
-| Hestia Eats | Node.js / Fastify / in-memory | `demos/hestia-eats/` | `demos/hestia-eats/AGENTS.md` | http://localhost:8080 |
+| Hestia Eats | TypeScript / Hono / in-memory | `demos/hestia-eats/` | `demos/hestia-eats/AGENTS.md` | http://localhost:8080 |
 
 ### Routing — Which AGENTS.md to Read
 

@@ -84,7 +84,7 @@ case "$APP_TYPE" in
     echo "Starting Hestia Eats..."
     cd demos/hestia-eats
     npm install --silent 2>/dev/null || true
-    node app.js > "$LOG_FILE" 2>&1 &
+    npx tsx app.ts > "$LOG_FILE" 2>&1 &
     APP_PID=$!
     cd ../..
     ;;
