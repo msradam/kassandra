@@ -14,7 +14,6 @@ interface MenuItem { id: number; restaurant_id: number; name: string; descriptio
 interface OrderItem { menu_item_id: number; quantity: number }
 interface Order { id: number; user_id: number; restaurant_id: number; items: OrderItem[]; total: number; status: string; delivery_address: string; created_at: string; updated_at: string; estimated_delivery: string | null; driver_name: string | null }
 interface Review { id: number; user_id: number; restaurant_id: number; order_id: number; rating: number; comment: string; created_at: string }
-interface Promotion { id: number; restaurant_id: number; title: string; description: string; discount_pct: number; min_order: number; promo_code: string; is_active: boolean; starts_at: string; expires_at: string }
 interface Cart { id: number; user_id: number; restaurant_id: number; items: OrderItem[]; total: number; created_at: string }
 
 // ── Seed Data ──
@@ -69,16 +68,6 @@ const reviews: Review[] = [
   { id: 3, user_id: 2, restaurant_id: 4, order_id: 3, rating: 5, comment: 'Best sushi in town!', created_at: '2026-03-14T22:00:00Z' },
 ]
 let nextReviewId = 4
-
-const promotions: Promotion[] = [
-  { id: 1, restaurant_id: 1, title: 'Dragon Palace Lunch Special', description: '20% off all mains during lunch hours', discount_pct: 20, min_order: 25.00, promo_code: 'DRAGON20', is_active: true, starts_at: '2026-03-01T00:00:00Z', expires_at: '2026-04-01T00:00:00Z' },
-  { id: 2, restaurant_id: 2, title: 'Bella Napoli Pizza Night', description: 'Buy 2 pizzas get 15% off', discount_pct: 15, min_order: 30.00, promo_code: 'PIZZA15', is_active: true, starts_at: '2026-03-10T00:00:00Z', expires_at: '2026-03-31T00:00:00Z' },
-  { id: 3, restaurant_id: 4, title: 'Sakura Sushi Happy Hour', description: '25% off sushi rolls after 5pm', discount_pct: 25, min_order: 20.00, promo_code: 'SUSHI25', is_active: true, starts_at: '2026-03-01T00:00:00Z', expires_at: '2026-03-25T00:00:00Z' },
-  { id: 4, restaurant_id: 6, title: 'Le Petit Weekend Brunch', description: '10% off weekend orders over $50', discount_pct: 10, min_order: 50.00, promo_code: 'BRUNCH10', is_active: true, starts_at: '2026-03-15T00:00:00Z', expires_at: '2026-04-15T00:00:00Z' },
-  { id: 5, restaurant_id: 7, title: 'Seoul Kitchen BBQ Feast', description: 'Free delivery on BBQ platters', discount_pct: 0, min_order: 40.00, promo_code: 'BBQFREE', is_active: false, starts_at: '2026-02-01T00:00:00Z', expires_at: '2026-03-01T00:00:00Z' },
-  { id: 6, restaurant_id: 3, title: 'Spice Route New Customer', description: '30% off first order', discount_pct: 30, min_order: 15.00, promo_code: 'SPICE30', is_active: true, starts_at: '2026-03-01T00:00:00Z', expires_at: '2026-06-01T00:00:00Z' },
-  { id: 7, restaurant_id: 8, title: 'Burger Joint Combo Deal', description: 'Free fries with any burger', discount_pct: 0, min_order: 14.99, promo_code: 'FREEFRIED', is_active: true, starts_at: '2026-03-10T00:00:00Z', expires_at: '2026-03-20T00:00:00Z' },
-]
 
 const carts = new Map<number, Cart>()
 let nextCartId = 1
@@ -321,46 +310,9 @@ app.get('/api/search', (c) => {
   return c.json({ query: q, restaurants: matchedRests, menu_items: matchedItems })
 })
 
-// ── Promotions ──
-
-app.get('/api/promotions', (c) => {
-  const active = c.req.query('active') ?? 'true'
-  const restaurantId = c.req.query('restaurant_id')
-  const ridFilter = restaurantId ? parseInt(restaurantId) : null
-
-  const result: Record<string, unknown>[] = []
-  for (const promo of promotions) {
-    if (active !== 'false' && !promo.is_active) continue
-    if (ridFilter !== null && promo.restaurant_id !== ridFilter) continue
-    // N+1: fetch restaurant details for each promotion
-    const entry: Record<string, unknown> = { ...promo }
-    for (const rest of restaurants) {
-      if (rest.id === promo.restaurant_id) {
-        entry.restaurant_name = rest.name
-        entry.restaurant_cuisine = rest.cuisine
-        entry.restaurant_rating = rest.rating
-        break
-      }
-    }
-    result.push(entry)
-  }
-  return c.json({ promotions: result, total: result.length })
-})
-
-app.get('/api/promotions/:id', (c) => {
-  const promo = promotions.find((p) => p.id === parseInt(c.req.param('id')))
-  if (!promo) return c.json({ error: 'Promotion not found' }, 404)
-  const entry: Record<string, unknown> = { ...promo }
-  const rest = restaurants.find((r) => r.id === promo.restaurant_id)
-  if (rest) entry.restaurant = rest
-  entry.menu_items = menuItems.filter((m) => m.restaurant_id === promo.restaurant_id && m.is_available)
-  entry.menu_item_count = (entry.menu_items as MenuItem[]).length
-  return c.json(entry)
-})
-
 // ── Start ──
 
 console.log(`Hestia Eats starting on :8080`)
-console.log(`Endpoints: 20 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length} | Promotions: ${promotions.length}`)
+console.log(`Endpoints: 18 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length}`)
 
 serve({ fetch: app.fetch, port: 8080 })
