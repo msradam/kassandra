@@ -82,14 +82,9 @@ case "$APP_TYPE" in
     HEALTH_URL="$BASE_URL/api/health"
     LOG_FILE="/tmp/hestia.log"
     echo "Starting Hestia Eats..."
-    GO=$(command -v go || echo "")
-    if [ -z "$GO" ]; then
-      echo "FATAL: Go not installed"; exit 1
-    fi
-    echo "Using Go: $($GO version 2>&1)"
     cd demos/hestia-eats
-    $GO build -o hestia-eats . 2>&1 || { echo "FATAL: Go build failed"; exit 1; }
-    ./hestia-eats > "$LOG_FILE" 2>&1 &
+    npm install --silent 2>/dev/null || true
+    node app.js > "$LOG_FILE" 2>&1 &
     APP_PID=$!
     cd ../..
     ;;
