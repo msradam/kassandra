@@ -22,6 +22,15 @@ This file guides Claude Code through a live browser demo of Kassandra, an AI per
 - The Playwright MCP server must be connected (check with `/mcp`)
 - You need a GitLab personal access token configured for `glab`
 
+### Video Recording
+To record a smooth video of the demo, run the standalone Playwright script:
+```bash
+npx tsx scripts/record-demo.ts
+```
+This opens a headed browser, navigates to MR !41, and smooth-scrolls through the full Kassandra report. The video is saved as a `.webm` file in `.playwright-mcp/`.
+
+Note: The Playwright MCP server's `--save-video` flag does not flush video until the server process exits, so video recording must use the standalone script with full context lifecycle control.
+
 ### Step-by-Step Demo Flow
 
 #### 1. Navigate to the MR
