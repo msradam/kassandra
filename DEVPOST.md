@@ -10,86 +10,91 @@ Kassandra — AI Performance Testing Agent for GitLab MRs
 
 ## Tagline
 
-Catches performance regressions before production — generates k6 tests from MR diffs, executes them, and posts Mermaid-charted reports.
+Drop an AGENTS.md in any repo, @mention on a merge request, get a full k6 performance report with Mermaid charts. No CI config, no manual test writing.
 
 ---
 
 ## Inspiration
 
-Performance testing is the first thing cut when deadlines get tight. Writing load tests is tedious, maintaining them is worse, and interpreting raw k6 output in CI logs requires expertise most teams don't have. We wanted an agent that does the entire loop — from reading a code diff to posting a clear, visual performance report — so developers can catch regressions without writing a single test.
+Performance testing gets skipped. Everyone knows it matters, but when the deadline's Thursday and the feature isn't done yet, nobody's writing load tests. And when they do, the results are raw k6 stdout buried in CI logs — numbers that require real expertise to interpret.
 
-The name comes from Greek mythology: Kassandra was gifted with prophecy but cursed so no one would believe her. This Kassandra sees your performance problems before production does — and posts the proof directly in your MR.
+We wanted to close that gap entirely. An agent that reads the MR diff, understands what endpoints changed, generates a proper k6 test, runs it, and posts a visual report right in the MR. The developer doesn't write a single test or configure any CI pipeline.
+
+The name is from Greek mythology — Kassandra had the gift of prophecy but was cursed so no one would believe her. Our Kassandra sees performance problems before production does, and posts the proof where you can't ignore it.
 
 ## What it does
 
-When you `@mention` Kassandra on any GitLab merge request, it:
+Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any merge request. Kassandra:
 
-1. **Reads the MR diff** to identify new or changed API endpoints
-2. **Retrieves API context** via a novel OpenAPI GraphRAG module — only the schemas relevant to changed endpoints, not the entire spec
-3. **Generates a k6 load test** with open-model executors, per-endpoint thresholds, response validation, and authentication flows
-4. **Commits the test** to the MR branch (it becomes part of the code review)
-5. **Executes the test** — app startup, health check, k6 run, cleanup — all in one process
-6. **Posts a rich performance report** as an MR comment with Mermaid latency charts, threshold tables, collapsible per-endpoint details, and AI analysis
+1. Reads the MR diff to find new or changed API endpoints
+2. Uses a novel OpenAPI GraphRAG module to extract only the relevant API schemas — not the whole spec, just what matters for the changed endpoints (96% context reduction)
+3. Generates a k6 load test with open-model executors, per-endpoint SLO thresholds, and deep response validation
+4. Commits the test script to the MR branch so it's visible in code review
+5. Starts the application, runs the test, shuts everything down
+6. Posts a performance report as an MR comment — Mermaid latency charts, threshold pass/fail tables, regression detection against baselines, per-endpoint breakdowns
 
-No CI YAML changes. No per-project agent code. Just drop an `AGENTS.md` config file in any repo and mention Kassandra.
+No CI YAML changes. No per-project agent code. Just an `AGENTS.md` config file defining your SLOs and auth.
+
+### It actually catches bugs
+
+On MR !39, Kassandra tested a new search suggestions endpoint on our Calliope Books demo. Every single request returned a 404. The agent diagnosed the root cause: an Express.js route ordering issue where `/api/books/:id` shadowed `/api/books/suggestions`. It recommended the exact fix. That's the whole point — catching problems before production, autonomously.
 
 ## How we built it
 
-**Platform:** GitLab Duo Workflow — the agent runs as a Duo Workflow with `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note` tools.
+**Platform:** GitLab Duo Workflow with `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note` tools.
 
-**Key components:**
+**Three key engineering decisions:**
 
-- **OpenAPI GraphRAG** (Python, NetworkX): Parses OpenAPI `$ref` structures into a directed graph, then uses BFS traversal to extract only the schemas relevant to changed endpoints. This achieves **96% context reduction** (799 chars vs 18,777 for full spec) — the LLM gets exactly what it needs, nothing more.
+1. **OpenAPI GraphRAG** — We built a deterministic knowledge graph using NetworkX that parses OpenAPI `$ref` structures into a directed graph. When an MR changes an endpoint, BFS traversal (depth 2) collects only the relevant schemas. On the Midas Bank spec, this reduces context from 18,777 characters to 799 — the LLM gets exactly what it needs without wasting tokens on unrelated schemas. We couldn't find prior art combining OpenAPI graph structure with retrieval-augmented generation, so this appears to be novel.
 
-- **Deterministic report generation** (Python): k6 JSON output is converted to Markdown with Mermaid `xychart-beta` bar charts and pie charts. The report format is guaranteed — the LLM extracts and posts it, never generates it freehand.
+2. **Deterministic report generation** — Early experiments showed the LLM producing inconsistent report formatting. We moved report generation entirely to a Python script (`generate-report.py`) that converts k6 JSON output into Markdown with Mermaid `xychart-beta` bar charts and pie charts. The format is guaranteed. The agent extracts and posts the report verbatim, then optionally appends its own analysis.
 
-- **Single-invocation execution** (Bash): App startup + k6 + cleanup all run in one `run_command` call via a helper script. This prevents the Duo Workflow runtime from hanging on orphan child processes.
+3. **Single-invocation execution** — The Duo Workflow `run_command` tool hangs if a child process is left running. So we wrote `run-k6-test.sh` — a single bash script that handles app startup, health check, k6 execution, report generation, and cleanup. One process, clean exit.
 
-- **AGENTS.md convention**: Each project defines its SLOs, auth config, and execution command in a single file. Kassandra reads it and follows it — truly project-agnostic.
-
-**Demo apps:** Two self-contained demos (Python/FastAPI banking API + Node.js/Express bookshop) with intentional performance patterns — aggregation queries, rate limiting, deposit caps, N+1 queries.
+**Demo applications:** Three self-contained apps covering different stacks — Python/FastAPI (banking), JavaScript/Express (bookshop), TypeScript/Hono (food delivery). Each has intentional performance patterns (N+1 queries, aggregation, rate limiting) for Kassandra to detect. All use embedded databases or in-memory stores, zero external dependencies.
 
 ## Challenges we ran into
 
-- **Duo Workflow context threshold**: Long prompts cause the agent to enter infinite tool-routing loops. We discovered the hard way that flow prompt + AGENTS.md + openapi.json must stay under a threshold. Solution: slim 20-line flow prompt, ~48-line AGENTS.md, and GraphRAG to minimize spec context.
+**Duo Workflow context limits.** Long prompts cause the agent to enter tool-routing loops — it keeps calling the same tool repeatedly without making progress. We learned to keep the flow prompt under 20 lines and put the detailed k6 generation rules in `agent.yml`. GraphRAG helps too — sending 800 chars of relevant context instead of 19K of full spec keeps the agent focused.
 
-- **Orphan process hanging**: Running app startup and k6 as separate `run_command` calls leaves the app process running, which the Duo Workflow runtime interprets as a hung command. Solution: single bash script that manages the full lifecycle.
+**Process lifecycle on the runner.** Duo Workflow's `run_command` blocks until the process exits. Starting the app server in one command and k6 in another leaves the server running forever. Everything had to happen in a single script with a trap handler for cleanup.
 
-- **Report quality**: Early runs produced inconsistent report formatting. Solution: deterministic `generate-report.py` pipeline with delimiter-based extraction — the agent posts the report verbatim, then may append its own analysis.
+**Report consistency.** We went through several iterations where the agent would "improve" the report formatting on its own. Mermaid syntax is sensitive — one wrong indent and the chart breaks. Moving to deterministic generation with delimiter-based extraction (`=== KASSANDRA REPORT START/END ===`) solved it completely.
 
-## Accomplishments that we're proud of
+**Polyglot routing.** Getting the agent to test the right application (not just the first demo it finds) required explicit diff-path routing. The root `AGENTS.md` maps file paths to demo-specific configs: changes under `demos/midas-bank/` → load Midas Bank's SLOs and execution command.
 
-- **Caught a real bug on first run** (MR !39): Kassandra detected a 100% failure rate on a new Calliope Books endpoint, correctly diagnosed an Express.js route ordering bug (`/api/books/suggestions` shadowed by `/api/books/:id`), and recommended the exact fix — all autonomously. This is the real value: catching issues before production.
-- **Clean runs across Python/FastAPI** (MRs !36, !37, !38): 2,841 requests across 3 Midas Bank features, all thresholds passing, zero self-correction commits.
-- **Novel OpenAPI GraphRAG** — no prior art combines OpenAPI graph structure + graph-based retrieval + LLM context injection. 96% context reduction means the agent gets exactly the right schemas without wasting tokens on irrelevant spec content.
-- **Project-agnostic design** — tested across Python/FastAPI and Node.js/Express with no agent code changes. Drop an AGENTS.md and go.
-- **Truly autonomous workflow** — from `@mention` to posted report with zero human intervention. The agent reads the diff, reads the config, generates the test, commits it, executes it, and posts the results.
+## Accomplishments we're proud of
+
+- **Caught a real bug autonomously** (MR !39) — 100% failure rate detected, root cause correctly diagnosed, exact fix recommended
+- **Clean runs across three stacks** — Python/FastAPI, Node.js/Express, TypeScript/Hono, all with the same agent and flow config
+- **96% context reduction via GraphRAG** — novel approach to giving LLMs only the API context they need
+- **Zero-config onboarding** — drop an `AGENTS.md`, @mention Kassandra, done
+- **57 unit tests** for the GraphRAG module, running in under 0.1 seconds
 
 ## What we learned
 
-- LLM agents need **guardrails on output format** — deterministic report generation beats hoping the model formats things consistently.
-- **Context is everything** — GraphRAG's 96% reduction isn't just about cost savings; it's about giving the LLM exactly the right information to generate accurate tests.
-- Duo Workflow's **single-tool execution model** requires careful orchestration — you can't assume background processes or multi-step shell sessions.
-- Short, focused prompts outperform long, detailed ones in workflow agents — the model routes tools better with less instruction.
+- LLM agents need guardrails on output format. "Generate a nice report" doesn't work reliably. Deterministic pipelines do.
+- Context quality matters more than context quantity. GraphRAG's 96% reduction isn't about saving tokens — it's about giving the model exactly the right information so it generates accurate tests.
+- Short prompts outperform detailed ones in workflow agents. The model routes tools better with less instruction.
+- The Duo Workflow platform is surprisingly capable once you work around its constraints. Single-tool execution, no persistent state, limited context — but the abstractions (agent + flow + tools) let you build real automation.
 
 ## What's next for Kassandra
 
-- **Regression detection**: Compare results across MR runs to flag performance changes over time
-- **Multi-protocol support**: gRPC and GraphQL endpoint detection and test generation
-- **Baseline profiles**: Auto-generate baseline performance profiles on merge to main
-- **GitLab CI integration**: Optional CI pipeline stage for scheduled performance testing alongside on-demand @mention triggers
+- **Multi-protocol support** — gRPC and GraphQL endpoint detection and test generation
+- **Baseline profiles on main** — automatically run performance tests on merge to build regression baselines
+- **Custom SLO alerting** — integrate with GitLab issues to auto-create tickets when performance degrades
+- **Community adoption** — publish the `AGENTS.md` convention so other projects can onboard without forking Kassandra
 
 ## Built with
 
-- GitLab Duo Workflow (Anthropic-powered agent platform)
-- Python
-- NetworkX (graph algorithms)
+- GitLab Duo Workflow
+- Python + NetworkX (GraphRAG)
 - k6 (load testing)
 - FastAPI (Python demo)
-- Node.js / Express (Node demo)
-- Mermaid (chart rendering)
-- SQLite / sql.js (embedded databases)
+- Express (Node.js demo)
+- Hono (TypeScript demo)
+- Mermaid (chart rendering in GitLab)
 
 ---
 
-> **Tracks:** Grand Prize, Most Technically Impressive, Most Impactful, Easiest to Use, GitLab & Anthropic
+> **Tracks:** Grand Prize, Most Technically Impressive, Most Impactful, GitLab & Anthropic

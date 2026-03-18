@@ -4,7 +4,7 @@
 #
 # Arguments:
 #   k6-script-path   Path to the k6 test script (e.g., k6/kassandra/mr-15-statement.js)
-#   app-type         "calliope" or "midas"
+#   app-type         "calliope", "midas", or "hestia"
 #   base-url         Optional, defaults based on app-type
 #
 # This script is designed to be called by Kassandra via run_command.
