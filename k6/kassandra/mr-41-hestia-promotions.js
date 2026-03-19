@@ -55,12 +55,12 @@ export const options = {
     },
   },
   thresholds: {
-    'http_req_duration{endpoint:list_promotions}': ['p95<500'],
-    'http_req_duration{endpoint:get_promotion_detail}': ['p95<500'],
+    'http_req_duration{endpoint:list_promotions}': ['p(95)<500'],
+    'http_req_duration{endpoint:get_promotion_detail}': ['p(95)<500'],
     'http_req_failed{endpoint:list_promotions}': ['rate<0.01'],
     'http_req_failed{endpoint:get_promotion_detail}': ['rate<0.01'],
-    'promotion_list_duration': ['p95<500', 'p99<800'],
-    'promotion_detail_duration': ['p95<500', 'p99<800'],
+    'promotion_list_duration': ['p(95)<500', 'p(99)<800'],
+    'promotion_detail_duration': ['p(95)<500', 'p(99)<800'],
   },
 };
 
