@@ -129,35 +129,6 @@ if [ -n "$BRANCH" ]; then
   fi
 fi
 
-# ── Step 3b: Run GraphRAG to capture context traversal ──
-GRAPHRAG_OUTPUT=""
-if [ -n "$BRANCH" ] && [ -n "$DIFF_TEXT" ]; then
-  echo "Running OpenAPI GraphRAG..."
-  SPEC_PATH=""
-  case "$APP_TYPE" in
-    calliope) SPEC_PATH="demos/calliope-books/openapi.json" ;;
-    midas)    SPEC_PATH="demos/midas-bank/openapi.json" ;;
-    hestia)   SPEC_PATH="demos/hestia-eats/openapi.json" ;;
-  esac
-  if [ -n "$SPEC_PATH" ] && [ -f "$SPEC_PATH" ]; then
-    GRAPHRAG_FILE="k6/kassandra/results/${REPORT_NAME}-graphrag.md"
-    GRAPHRAG_LOG="/tmp/graphrag-err.log"
-    echo "$DIFF_TEXT" | $RISK_PYTHON -m graphrag --spec "$SPEC_PATH" --diff-stdin > "$GRAPHRAG_FILE" 2>"$GRAPHRAG_LOG" || true
-    if [ -s "$GRAPHRAG_FILE" ]; then
-      echo "GraphRAG: OK ($(wc -l < "$GRAPHRAG_FILE") lines)"
-    else
-      echo "GraphRAG failed:"
-      cat "$GRAPHRAG_LOG" 2>/dev/null
-    fi
-    if [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
-      GRAPHRAG_OUTPUT="$GRAPHRAG_FILE"
-      echo "GraphRAG traversal complete."
-    else
-      echo "WARNING: GraphRAG produced no output (falling back to full spec)"
-    fi
-  fi
-fi
-
 # ── Step 4: Validate k6 script ──
 echo ""
 echo "Validating k6 script: $SCRIPT_PATH"
@@ -221,25 +192,6 @@ if [ -f "$JSON_RESULT" ]; then
   echo "Generating report: $PYTHON scripts/generate-report.py $REPORT_ARGS"
   $PYTHON scripts/generate-report.py $REPORT_ARGS 2>&1 | tail -3 || echo "WARNING: Report generation failed"
   MD_RESULT="k6/kassandra/results/${REPORT_NAME}-report.md"
-  # Append GraphRAG traversal to report if available
-  if [ -n "$GRAPHRAG_OUTPUT" ] && [ -f "$GRAPHRAG_OUTPUT" ]; then
-    {
-      echo ""
-      echo "---"
-      echo ""
-      echo "### OpenAPI GraphRAG Context"
-      echo ""
-      echo "<details>"
-      echo "<summary>Graph traversal — matched endpoints and retrieved schemas</summary>"
-      echo ""
-      echo '```'
-      cat "$GRAPHRAG_OUTPUT"
-      echo '```'
-      echo ""
-      echo "</details>"
-    } >> "$MD_RESULT"
-    echo "GraphRAG traversal appended to report."
-  fi
   if [ -f "$MD_RESULT" ]; then
     echo ""
     echo "=== KASSANDRA REPORT START ==="
