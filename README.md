@@ -129,7 +129,7 @@ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --sp
 # Demo apps
 cd demos/midas-bank && uv pip install -r requirements.txt && uv run uvicorn app:app --port 8000
 cd demos/calliope-books && npm install && node app.js
-cd demos/hestia-eats && npm install && npx tsx app.ts
+cd demos/hestia-eats && node app.js
 
 # Full test in podman (mirrors CI runner: Python 3.12, Node.js 18, k6 v0.56.0)
 podman run --rm -v $(pwd):/workspace:Z -w /workspace kassandra-runner-sim \
