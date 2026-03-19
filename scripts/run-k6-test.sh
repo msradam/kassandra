@@ -131,10 +131,9 @@ fi
 
 # ── Step 3b: GraphRAG context retrieval ──
 GRAPHRAG_REPORT=""
-if [ -n "$BRANCH" ]; then
+if [ -n "$BRANCH" ] && [ -n "$DIFF_TEXT" ]; then
   echo "Running GraphRAG context retrieval..."
-  DIFF_TEXT_RAG=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
-  if [ -n "$DIFF_TEXT_RAG" ]; then
+  if [ -n "$DIFF_TEXT" ]; then
     # Resolve app directory from app type
     case "$APP_TYPE" in
       calliope) APP_DIR="demos/calliope-books" ;;
@@ -143,7 +142,7 @@ if [ -n "$BRANCH" ]; then
     esac
     GRAPHRAG_FILE="k6/kassandra/results/${REPORT_NAME}-graphrag.md"
     GRAPHRAG_LOG="k6/kassandra/results/${REPORT_NAME}-graphrag-err.log"
-    echo "$DIFF_TEXT_RAG" | $GRAPHRAG_PYTHON -m graphrag --spec "$APP_DIR/openapi.json" --diff-stdin > "$GRAPHRAG_FILE" 2>"$GRAPHRAG_LOG"
+    echo "$DIFF_TEXT" | $GRAPHRAG_PYTHON -m graphrag --spec "$APP_DIR/openapi.json" --diff-stdin > "$GRAPHRAG_FILE" 2>"$GRAPHRAG_LOG"
     GRAPHRAG_EXIT=$?
     if [ $GRAPHRAG_EXIT -eq 0 ] && [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
       GRAPHRAG_REPORT="$GRAPHRAG_FILE"
