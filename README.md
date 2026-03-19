@@ -8,7 +8,7 @@ Built on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/developme
 
 ## The problem
 
-Performance testing gets skipped. A 2023 Sauce Labs survey found 56% of teams don't performance test before release. The reasons are predictable: writing k6 scripts is tedious, maintaining them alongside API changes is worse, and interpreting raw stdout in CI logs requires expertise most teams don't have.
+Performance testing gets skipped. Writing k6 scripts is tedious, maintaining them alongside API changes is worse, and interpreting raw stdout in CI logs requires expertise most teams don't have.
 
 The result: latency regressions ship to production. An N+1 query that adds 200ms per request under load goes unnoticed until customers complain.
 
@@ -58,7 +58,7 @@ Retrieved: 4 schemas, 1 params
 
 | MR | App | Feature | Requests | Thresholds | Outcome |
 |----|-----|---------|----------|------------|---------|
-| !36 | Midas Bank | Transfer rate limiting | 74 | 3/3 pass | Clean |
+| !36 | Midas Bank | Transfer rate limiting | 74 | 2/2 pass | Clean |
 | !37 | Midas Bank | Spending summary | 863 | 8/8 pass | Clean |
 | !39 | Calliope Books | Search suggestions | 576 | 1/3 pass | **Caught real bug** |
 | !41 | Hestia Eats | Promotions system | — | — | Pending |
@@ -71,9 +71,9 @@ Three self-contained apps covering different stacks:
 
 | App | Stack | Port | Endpoints | Intentional patterns |
 |-----|-------|------|-----------|---------------------|
-| Midas Bank | Python / FastAPI / SQLite | 8000 | 8 | Aggregation queries, rate limiting, deposit caps |
-| Calliope Books | JavaScript / Express / sql.js | 3000 | 7 | N+1 queries, unoptimized LIKE, route ordering bugs |
-| Hestia Eats | TypeScript / Hono / in-memory | 8080 | 20 | N+1 restaurant enrichment, iterative lookups |
+| Midas Bank | Python / FastAPI / SQLite | 8000 | 11 | Aggregation queries, rate limiting, deposit caps |
+| Calliope Books | JavaScript / Express / sql.js | 3000 | 17 | N+1 queries, unoptimized LIKE, route ordering bugs |
+| Hestia Eats | TypeScript / Hono / in-memory | 8080 | 17 | N+1 restaurant enrichment, iterative lookups |
 
 All use embedded databases or in-memory stores. Zero external dependencies. Each includes an `AGENTS.md` with project-specific SLOs and auth config, and an `openapi.json` spec.
 

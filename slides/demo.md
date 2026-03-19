@@ -22,7 +22,7 @@ paginate: true
 
 1. Reads the MR diff → identifies changed endpoints
 2. OpenAPI GraphRAG → retrieves only relevant schemas (~97% context reduction)
-3. Generates & commits a k6 test → open-model executors, SLO thresholds
+3. Generates & commits a k6 test → arrival-rate executors, SLO thresholds
 4. Runs it → app startup, k6, cleanup in one process
 5. Posts the report → Mermaid charts, regression detection, per-endpoint breakdowns
 
@@ -34,7 +34,7 @@ No CI config. No manual test writing. One `AGENTS.md` per project.
 
 | MR | App | Requests | Thresholds | Outcome |
 |----|-----|----------|------------|---------|
-| !36 | Midas Bank (Python/FastAPI) | 74 | 3/3 pass | Clean |
+| !36 | Midas Bank (Python/FastAPI) | 74 | 2/2 pass | Clean |
 | !37 | Midas Bank (Python/FastAPI) | 863 | 8/8 pass | Clean |
 | !39 | Calliope Books (Node/Express) | 576 | 1/3 pass | **Bug caught** |
 
