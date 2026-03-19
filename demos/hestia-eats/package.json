@@ -1,8 +1,9 @@
 {
   "name": "hestia-eats",
   "version": "1.0.0",
+  "type": "module",
   "description": "Food delivery platform API — TypeScript / Hono",
-  "main": "app.ts",
+  "main": "app.js",
   "dependencies": {
     "hono": "^4.0.0",
     "@hono/node-server": "^1.8.0",
