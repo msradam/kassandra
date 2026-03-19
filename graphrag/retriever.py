@@ -135,8 +135,8 @@ class SubgraphRetriever:
                     if _paths_match(path, known_path):
                         found.add(known_ep)
 
-        # Match Express routes: router.get('/api/foo', ...)
-        for match in re.finditer(r'router\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', diff):
+        # Match Express/Hono/generic: router.get('/api/foo', ...) or app.get('/api/foo', ...)
+        for match in re.finditer(r'(?:router|app)\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', diff):
             method = match.group(1).upper()
             path = match.group(2)
             for known_path, known_ep in known_paths.items():
