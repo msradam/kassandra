@@ -35,17 +35,16 @@ definition:
           2. list_merge_request_diffs → get the code diff
           3. read_file AGENTS.md → routing table; identify which demo app
           4. read_file demos/{app-dir}/AGENTS.md (based on diff file paths)
-          5. run_command to get API context via GraphRAG:
-             python3.12 -m pip install --break-system-packages networkx -q 2>/dev/null; python3.12 -m graphrag --spec demos/{app-dir}/openapi.json --diff-stdin <<'DIFF'
-             {paste diff from step 2}
-             DIFF
+          5. create_file_with_contents → save the diff from step 2 to /tmp/mr-diff.txt
+          6. run_command to get API context via GraphRAG:
+             python3.12 -m pip install --break-system-packages networkx -q 2>/dev/null; python3.12 -m graphrag --spec demos/{app-dir}/openapi.json --diff-file /tmp/mr-diff.txt
              Use this output as API context. If it fails, fall back to: read_file demos/{app-dir}/openapi.json
-          6. Generate k6 script per AGENTS.md rules
-          7. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}.js
-          8. create_commit to MR source branch
-          9. run_command → EXACT command from AGENTS.md
-          10. Extract report between === KASSANDRA REPORT START/END === delimiters
-          11. create_merge_request_note → post report verbatim, optional analysis after
+          7. Generate k6 script per AGENTS.md rules
+          8. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}.js
+          9. create_commit to MR source branch
+          10. run_command → EXACT command from AGENTS.md
+          11. Extract report between === KASSANDRA REPORT START/END === delimiters
+          12. create_merge_request_note → post report verbatim, optional analysis after
           ## Rules
           - Only k6 built-in imports (k6/http, k6, k6/metrics, k6/execution, k6/encoding)
           - Only arrival-rate executors, never ramping-vus

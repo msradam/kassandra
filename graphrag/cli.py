@@ -86,6 +86,7 @@ def main():
     parser = argparse.ArgumentParser(description="OpenAPI GraphRAG — retrieve relevant API context from a diff")
     parser.add_argument("--spec", required=True, help="Path to OpenAPI JSON spec")
     parser.add_argument("--diff-stdin", action="store_true", help="Read unified diff from stdin")
+    parser.add_argument("--diff-file", help="Read unified diff from a file")
     parser.add_argument("--json", action="store_true", dest="json_output", help="Output as JSON instead of text")
     args = parser.parse_args()
 
@@ -102,10 +103,17 @@ def main():
     graph = OpenAPIGraph.from_spec(spec)
 
     # Read diff
-    if args.diff_stdin:
+    if args.diff_file:
+        diff_path = Path(args.diff_file)
+        if not diff_path.exists():
+            print(f"Error: diff file not found: {diff_path}", file=sys.stderr)
+            sys.exit(1)
+        with open(diff_path) as f:
+            diff = f.read()
+    elif args.diff_stdin:
         diff = sys.stdin.read()
     else:
-        print("Error: --diff-stdin is required", file=sys.stderr)
+        print("Error: --diff-stdin or --diff-file is required", file=sys.stderr)
         sys.exit(1)
 
     if not diff.strip():
