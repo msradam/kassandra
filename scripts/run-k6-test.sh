@@ -141,7 +141,8 @@ if [ -n "$BRANCH" ] && [ -n "$DIFF_TEXT" ]; then
   esac
   if [ -n "$SPEC_PATH" ] && [ -f "$SPEC_PATH" ]; then
     GRAPHRAG_FILE="k6/kassandra/results/${REPORT_NAME}-graphrag.md"
-    echo "$DIFF_TEXT" | $RISK_PYTHON -m graphrag --spec "$SPEC_PATH" --diff-stdin > "$GRAPHRAG_FILE" 2>/dev/null || true
+    echo "GraphRAG: using $RISK_PYTHON ($($RISK_PYTHON --version 2>&1)), spec=$SPEC_PATH"
+    echo "$DIFF_TEXT" | $RISK_PYTHON -m graphrag --spec "$SPEC_PATH" --diff-stdin > "$GRAPHRAG_FILE" 2>&1 || echo "WARNING: GraphRAG command failed (exit $?)"
     if [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
       GRAPHRAG_OUTPUT="$GRAPHRAG_FILE"
       echo "GraphRAG traversal complete."
