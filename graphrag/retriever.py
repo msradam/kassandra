@@ -115,28 +115,48 @@ class SubgraphRetriever:
         )
 
     def endpoints_from_diff(self, diff: str) -> list[str]:
-        """Extract endpoint IDs from a unified diff by matching route patterns."""
+        """Extract endpoint IDs from a unified diff by matching route patterns.
+
+        Only examines added lines (starting with '+') to identify endpoints
+        that were actually changed, not just present in the diff context.
+        Falls back to full diff if no added lines match.
+        """
         G = self.graph.graph
         known_endpoints = self.graph.endpoints()
         known_paths = {G.nodes[ep]["path"]: ep for ep in known_endpoints}
 
+        # Extract only added lines from the diff for targeted matching
+        added_lines = "\n".join(
+            line[1:] for line in diff.splitlines()
+            if line.startswith("+") and not line.startswith("+++")
+        )
+
+        # Try matching added lines first, fall back to full diff
+        for text in [added_lines, diff]:
+            found = self._match_endpoints_in_text(text, known_paths)
+            if found:
+                return list(found)
+
+        return []
+
+    def _match_endpoints_in_text(self, text: str, known_paths: dict[str, str]) -> set[str]:
+        """Match API endpoint patterns in text against known OpenAPI paths."""
         found = set()
 
         # Match FastAPI/Flask decorators: @app.get("/api/foo")
-        for match in re.finditer(r'@app\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', diff):
+        for match in re.finditer(r'@app\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', text):
             method = match.group(1).upper()
             path = match.group(2)
             ep_id = f"{method} {path}"
             if ep_id in known_paths.values():
                 found.add(ep_id)
             else:
-                # Try matching just the path
                 for known_path, known_ep in known_paths.items():
                     if _paths_match(path, known_path):
                         found.add(known_ep)
 
         # Match Express/Hono/generic: router.get('/api/foo', ...) or app.get('/api/foo', ...)
-        for match in re.finditer(r'(?:router|app)\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', diff):
+        for match in re.finditer(r'(?:router|app)\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)', text):
             method = match.group(1).upper()
             path = match.group(2)
             for known_path, known_ep in known_paths.items():
@@ -145,13 +165,13 @@ class SubgraphRetriever:
 
         # Fallback: match any quoted path that looks like an API route
         if not found:
-            for match in re.finditer(r'["\'](/api/[^"\']+)["\']', diff):
+            for match in re.finditer(r'["\'](/api/[^"\']+)["\']', text):
                 path = match.group(1)
                 for known_path, known_ep in known_paths.items():
                     if _paths_match(path, known_path):
                         found.add(known_ep)
 
-        return list(found)
+        return found
 
     def _collect_schema(self, schema_name: str, collected: dict, depth: int) -> None:
         """Recursively collect a schema and its referenced schemas."""
