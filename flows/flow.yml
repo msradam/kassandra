@@ -44,7 +44,7 @@ definition:
           8. create_commit to MR source branch
           9. run_command → EXACT command from AGENTS.md
           10. Extract report between === KASSANDRA REPORT START/END === delimiters
-          11. create_merge_request_note → post report verbatim, optional analysis after
+          11. create_merge_request_note → post report verbatim. AFTER the report, append a "## GraphRAG Context" section with the traversal output from step 5 (graph stats, matched endpoints, retrieved schemas). Then optional analysis.
           ## Rules
           - Only k6 built-in imports (k6/http, k6, k6/metrics, k6/execution, k6/encoding)
           - Only arrival-rate executors, never ramping-vus
