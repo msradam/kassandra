@@ -47,6 +47,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# ── Step 0b: Install GraphRAG dependency (NetworkX) ──
+GRAPHRAG_PYTHON=$(command -v python3.12 || command -v python3)
+$GRAPHRAG_PYTHON -m pip install --break-system-packages networkx --quiet 2>/dev/null || echo "WARNING: networkx install failed (GraphRAG will fall back to full spec)"
+
 # ── Step 1: Start the target application ──
 case "$APP_TYPE" in
   calliope)
@@ -71,7 +75,6 @@ case "$APP_TYPE" in
     echo "Using Python: $PYTHON ($($PYTHON --version 2>&1))"
     cd demos/midas-bank
     $PIP install --break-system-packages -r requirements.txt --quiet 2>/dev/null || echo "WARNING: pip install failed"
-    $PIP install --break-system-packages networkx --quiet 2>/dev/null || echo "WARNING: networkx install failed (GraphRAG will fall back to full spec)"
     $PYTHON -c "import fastapi; print(f'FastAPI {fastapi.__version__}')" 2>/dev/null || { echo "FATAL: FastAPI not installed"; exit 1; }
     $PYTHON -m uvicorn app:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
     APP_PID=$!
