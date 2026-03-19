@@ -108,10 +108,10 @@ def main():
         if not diff_path.exists():
             print(f"Error: diff file not found: {diff_path}", file=sys.stderr)
             sys.exit(1)
-        with open(diff_path) as f:
+        with open(diff_path, errors="replace") as f:
             diff = f.read()
     elif args.diff_stdin:
-        diff = sys.stdin.read()
+        diff = sys.stdin.buffer.read().decode("utf-8", errors="replace")
     else:
         print("Error: --diff-stdin or --diff-file is required", file=sys.stderr)
         sys.exit(1)
