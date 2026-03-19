@@ -18,7 +18,21 @@ APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch
 BASE_URL="${3:-}"
 BRANCH="${4:-}"
 
-# ── Step 0: Preserve scripts from main, then checkout MR source branch ──
+# ── Step 0: Auto-detect branch if not provided ──
+if [ -z "$BRANCH" ]; then
+  echo "No branch specified, auto-detecting from remote..."
+  git fetch origin --prune 2>/dev/null || true
+  for remote_branch in $(git branch -r 2>/dev/null | grep -v 'origin/main' | grep -v 'origin/HEAD' | grep 'feature/' | head -5); do
+    candidate=$(echo "$remote_branch" | xargs)
+    if ! git diff --quiet origin/main..."$candidate" -- '*.py' '*.js' '*.ts' 2>/dev/null; then
+      BRANCH="${candidate#origin/}"
+      echo "Auto-detected MR branch: $BRANCH"
+      break
+    fi
+  done
+fi
+
+# ── Step 0b: Preserve scripts from main, then checkout MR source branch ──
 # Scripts must stay at the main branch version even when we checkout the MR branch,
 # because the MR branch may not have the latest report generator / risk analyzer.
 SCRIPTS_TMP=$(mktemp -d)
@@ -28,7 +42,7 @@ if [ -n "$BRANCH" ]; then
   git fetch origin "$BRANCH" 2>/dev/null || git fetch 2>/dev/null || true
   git checkout "$BRANCH" 2>/dev/null || git checkout "origin/$BRANCH" 2>/dev/null || echo "WARNING: Could not checkout $BRANCH"
   # Restore scripts from main
-  cp -r "$SCRIPTS_TMP/scripts/"* scripts/
+  cp -r "$SCRIPTS_TMP/scripts/"* scripts/ 2>/dev/null || cp -r "$SCRIPTS_TMP/"* scripts/ 2>/dev/null || true
   echo "Restored scripts from main branch."
 fi
 
