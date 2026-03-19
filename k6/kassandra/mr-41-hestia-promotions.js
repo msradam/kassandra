@@ -218,7 +218,7 @@ function testGetPromotionDetail() {
 function testGetPromotionNotFound() {
   const res = http.get(`${BASE_URL}/api/promotions/9999`, {
     headers,
-    tags: { endpoint: 'get_promotion_detail' },
+    tags: { endpoint: 'get_promotion_not_found' },
   });
 
   check(res, {
