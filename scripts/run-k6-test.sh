@@ -116,22 +116,36 @@ done
 RISK_REPORT=""
 RISK_PYTHON=$(command -v python3.12 || command -v python3)
 mkdir -p k6/kassandra/results
+
+# Auto-detect diff: try explicit branch, then current HEAD vs origin/main
+DIFF_TEXT=""
 if [ -n "$BRANCH" ]; then
-  echo "Running pre-test risk analysis..."
   DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
-  if [ -n "$DIFF_TEXT" ]; then
-    RISK_FILE="k6/kassandra/results/${REPORT_NAME}-risk.md"
-    echo "$DIFF_TEXT" | $RISK_PYTHON scripts/analyze-risk.py --diff-stdin > "$RISK_FILE" 2>/dev/null || true
-    if [ -f "$RISK_FILE" ] && [ -s "$RISK_FILE" ]; then
-      RISK_REPORT="$RISK_FILE"
-      echo "Risk analysis complete."
-    fi
+fi
+if [ -z "$DIFF_TEXT" ]; then
+  # Fallback: compare current HEAD against origin/main (works after branch checkout or if already on branch)
+  DIFF_TEXT=$(git diff origin/main...HEAD -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+fi
+if [ -z "$DIFF_TEXT" ]; then
+  # Last resort: compare working tree against origin/main
+  DIFF_TEXT=$(git diff origin/main -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+fi
+
+if [ -n "$DIFF_TEXT" ]; then
+  echo "Diff found ($(echo "$DIFF_TEXT" | wc -l) lines). Running analyses..."
+  RISK_FILE="k6/kassandra/results/${REPORT_NAME}-risk.md"
+  echo "$DIFF_TEXT" | $RISK_PYTHON scripts/analyze-risk.py --diff-stdin > "$RISK_FILE" 2>/dev/null || true
+  if [ -f "$RISK_FILE" ] && [ -s "$RISK_FILE" ]; then
+    RISK_REPORT="$RISK_FILE"
+    echo "Risk analysis complete."
   fi
+else
+  echo "No diff found — skipping risk analysis and GraphRAG."
 fi
 
 # ── Step 3b: GraphRAG context retrieval ──
 GRAPHRAG_REPORT=""
-if [ -n "$BRANCH" ] && [ -n "$DIFF_TEXT" ]; then
+if [ -n "$DIFF_TEXT" ]; then
   echo "Running GraphRAG context retrieval..."
   if [ -n "$DIFF_TEXT" ]; then
     # Resolve app directory from app type
