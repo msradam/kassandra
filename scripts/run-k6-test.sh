@@ -142,12 +142,16 @@ if [ -n "$BRANCH" ]; then
       hestia)   APP_DIR="demos/hestia-eats" ;;
     esac
     GRAPHRAG_FILE="k6/kassandra/results/${REPORT_NAME}-graphrag.md"
-    echo "$DIFF_TEXT_RAG" | $GRAPHRAG_PYTHON -m graphrag --spec "$APP_DIR/openapi.json" --diff-stdin > "$GRAPHRAG_FILE" 2>/dev/null || true
-    if [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
+    GRAPHRAG_LOG="k6/kassandra/results/${REPORT_NAME}-graphrag-err.log"
+    echo "$DIFF_TEXT_RAG" | $GRAPHRAG_PYTHON -m graphrag --spec "$APP_DIR/openapi.json" --diff-stdin > "$GRAPHRAG_FILE" 2>"$GRAPHRAG_LOG"
+    GRAPHRAG_EXIT=$?
+    if [ $GRAPHRAG_EXIT -eq 0 ] && [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
       GRAPHRAG_REPORT="$GRAPHRAG_FILE"
-      echo "GraphRAG context retrieval complete."
+      echo "GraphRAG context retrieval complete ($(wc -l < "$GRAPHRAG_FILE") lines)."
     else
-      echo "GraphRAG: no matching endpoints found (or spec not found for $APP_TYPE)."
+      echo "GraphRAG exited $GRAPHRAG_EXIT. Log:"
+      cat "$GRAPHRAG_LOG" 2>/dev/null || true
+      echo "GraphRAG: falling back to full spec."
     fi
   fi
 fi
