@@ -18,21 +18,7 @@ APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch
 BASE_URL="${3:-}"
 BRANCH="${4:-}"
 
-# ── Step 0: Auto-detect branch if not provided ──
-if [ -z "$BRANCH" ]; then
-  echo "No branch specified, auto-detecting from remote..."
-  git fetch origin --prune 2>/dev/null || true
-  for remote_branch in $(git branch -r 2>/dev/null | grep -v 'origin/main' | grep -v 'origin/HEAD' | grep 'feature/' | head -5); do
-    candidate=$(echo "$remote_branch" | xargs)
-    if ! git diff --quiet origin/main..."$candidate" -- '*.py' '*.js' '*.ts' 2>/dev/null; then
-      BRANCH="${candidate#origin/}"
-      echo "Auto-detected MR branch: $BRANCH"
-      break
-    fi
-  done
-fi
-
-# ── Step 0b: Preserve scripts from main, then checkout MR source branch ──
+# ── Step 0: Preserve scripts from main, then checkout MR source branch ──
 # Scripts must stay at the main branch version even when we checkout the MR branch,
 # because the MR branch may not have the latest report generator / risk analyzer.
 SCRIPTS_TMP=$(mktemp -d)
@@ -159,7 +145,12 @@ fi
 
 # ── Step 3b: GraphRAG context retrieval ──
 GRAPHRAG_REPORT=""
-if [ -n "$DIFF_TEXT" ]; then
+# Check for pre-computed GraphRAG file first (committed alongside k6 script)
+PRECOMPUTED_GRAPHRAG="k6/kassandra/${REPORT_NAME}-graphrag.md"
+if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ]; then
+  GRAPHRAG_REPORT="$PRECOMPUTED_GRAPHRAG"
+  echo "Using pre-computed GraphRAG: $PRECOMPUTED_GRAPHRAG ($(wc -l < "$PRECOMPUTED_GRAPHRAG") lines)"
+elif [ -n "$DIFF_TEXT" ]; then
   echo "Running GraphRAG context retrieval..."
   if [ -n "$DIFF_TEXT" ]; then
     # Resolve app directory from app type
