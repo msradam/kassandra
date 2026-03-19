@@ -130,7 +130,7 @@ def _build_baseline_lookup(baseline_data: dict) -> dict:
     return lookup
 
 
-def format_report(data: dict, baseline_data: dict | None = None, risk_report: str | None = None) -> str:
+def format_report(data: dict, baseline_data: dict | None = None, risk_report: str | None = None, graphrag_report: str | None = None) -> str:
     lines = []
     duration = data["state"]["testRunDurationMs"] / 1000
     metrics = data.get("metrics", {})
@@ -475,6 +475,15 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
 
         lines.append("\n</details>\n")
 
+    # ── GraphRAG context (if available)
+    if graphrag_report and graphrag_report.strip():
+        lines.append("<details>")
+        lines.append("<summary><strong>🔬 OpenAPI GraphRAG Context</strong> — Deterministic subgraph retrieval from OpenAPI spec</summary>\n")
+        lines.append("```")
+        lines.append(graphrag_report.strip())
+        lines.append("```")
+        lines.append("\n</details>\n")
+
     lines.append("---")
     lines.append("> 🔮 *Kassandra sees the performance problems you won't — until production.*")
     return "\n".join(lines)
@@ -486,6 +495,7 @@ def main():
     parser.add_argument("--baseline", help="Path to baseline k6 JSON for regression detection")
     parser.add_argument("--save-baseline", help="Save current results as baseline to this path")
     parser.add_argument("--risk-report", help="Path to pre-test risk analysis markdown")
+    parser.add_argument("--graphrag-report", help="Path to GraphRAG context output")
     args = parser.parse_args()
 
     json_path = Path(args.json_path)
@@ -509,7 +519,13 @@ def main():
         if risk_path.exists():
             risk_report = risk_path.read_text()
 
-    report = format_report(data, baseline_data, risk_report)
+    graphrag_report = None
+    if args.graphrag_report:
+        graphrag_path = Path(args.graphrag_report)
+        if graphrag_path.exists():
+            graphrag_report = graphrag_path.read_text()
+
+    report = format_report(data, baseline_data, risk_report, graphrag_report)
 
     # Write .md alongside the .json
     md_path = json_path.parent / (json_path.stem + "-report.md")

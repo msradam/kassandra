@@ -129,6 +129,29 @@ if [ -n "$BRANCH" ]; then
   fi
 fi
 
+# ── Step 3b: GraphRAG context retrieval ──
+GRAPHRAG_REPORT=""
+if [ -n "$BRANCH" ]; then
+  echo "Running GraphRAG context retrieval..."
+  DIFF_TEXT_RAG=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+  if [ -n "$DIFF_TEXT_RAG" ]; then
+    # Resolve app directory from app type
+    case "$APP_TYPE" in
+      calliope) APP_DIR="demos/calliope-books" ;;
+      midas)    APP_DIR="demos/midas-bank" ;;
+      hestia)   APP_DIR="demos/hestia-eats" ;;
+    esac
+    GRAPHRAG_FILE="k6/kassandra/results/${REPORT_NAME}-graphrag.md"
+    echo "$DIFF_TEXT_RAG" | $GRAPHRAG_PYTHON -m graphrag --spec "$APP_DIR/openapi.json" --diff-stdin > "$GRAPHRAG_FILE" 2>/dev/null || true
+    if [ -f "$GRAPHRAG_FILE" ] && [ -s "$GRAPHRAG_FILE" ]; then
+      GRAPHRAG_REPORT="$GRAPHRAG_FILE"
+      echo "GraphRAG context retrieval complete."
+    else
+      echo "GraphRAG: no matching endpoints found (or spec not found for $APP_TYPE)."
+    fi
+  fi
+fi
+
 # ── Step 4: Validate k6 script ──
 echo ""
 echo "Validating k6 script: $SCRIPT_PATH"
@@ -187,6 +210,11 @@ if [ -f "$JSON_RESULT" ]; then
   # Include risk analysis if available
   if [ -n "$RISK_REPORT" ]; then
     REPORT_ARGS="$REPORT_ARGS --risk-report $RISK_REPORT"
+  fi
+
+  # Include GraphRAG context if available
+  if [ -n "$GRAPHRAG_REPORT" ]; then
+    REPORT_ARGS="$REPORT_ARGS --graphrag-report $GRAPHRAG_REPORT"
   fi
 
   echo "Generating report: $PYTHON scripts/generate-report.py $REPORT_ARGS"
