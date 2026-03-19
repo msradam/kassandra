@@ -29,7 +29,7 @@ The name comes from Greek mythology. Kassandra had the gift of prophecy but was 
 Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge request. Kassandra:
 
 1. Reads the MR diff to identify new/changed API endpoints
-2. Retrieves relevant API schemas via OpenAPI GraphRAG — 96% context reduction (799 chars vs 18,777 for full spec)
+2. Retrieves relevant API schemas via OpenAPI GraphRAG — ~97% context reduction (618 chars vs 24,421 for the full spec)
 3. Generates a k6 load test with open-model executors, per-endpoint SLO thresholds, deep response validation
 4. Commits the test script to the MR branch (visible in code review)
 5. Starts the application, runs k6, shuts everything down
@@ -45,13 +45,10 @@ On MR !39, Kassandra tested a new search suggestions endpoint on a Node.js/Expre
 
 | MR | App | Feature | Requests | Thresholds | Outcome |
 |----|-----|---------|----------|------------|---------|
-| !36 | Midas Bank (Python/FastAPI) | Transfer rate limiting | 1,650 | 10/10 pass | Clean |
+| !36 | Midas Bank (Python/FastAPI) | Transfer rate limiting | 74 | 3/3 pass | Clean |
 | !37 | Midas Bank (Python/FastAPI) | Spending summary | 863 | 8/8 pass | Clean |
-| !38 | Midas Bank (Python/FastAPI) | Deposit limits | 328 | 8/8 pass | Clean |
-| !39 | Calliope Books (Node/Express) | Search suggestions | 576 | 0/8 fail | Bug caught |
+| !39 | Calliope Books (Node/Express) | Search suggestions | 576 | 1/3 pass | Bug caught |
 | !41 | Hestia Eats (TypeScript/Hono) | Promotions | — | — | Pending |
-
-Total: 3,417 requests across 4 MRs. 3 clean runs, 1 real bug caught.
 
 ## How we built it
 
@@ -61,7 +58,7 @@ Total: 3,417 requests across 4 MRs. 3 clean runs, 1 real bug caught.
 
 Feeding the full OpenAPI spec to the LLM wastes context and produces worse tests — the model hallucinates endpoints that exist in the spec but weren't changed. I built a deterministic knowledge graph using NetworkX that parses the spec's `$ref` structure into a directed graph (endpoints → schemas → properties → refs). When an endpoint changes, BFS traversal (depth 2) collects only the reachable schemas.
 
-On the Midas Bank spec (76 nodes, 79 edges), this reduces context from 18,777 characters to 799. The LLM sees exactly the schemas it needs. 57 unit tests, ~0.1s runtime.
+On the Midas Bank spec (104 nodes, 107 edges), this reduces context from 24,421 characters to 618. The LLM sees exactly the schemas it needs. 57 unit tests, ~0.1s runtime.
 
 ### Deterministic report generation
 
@@ -96,14 +93,14 @@ All use embedded databases or in-memory stores. Zero external dependencies. Each
 ## Accomplishments we're proud of
 
 - Caught a real bug autonomously (MR !39) — 100% failure rate, root cause diagnosed, exact fix recommended
-- 3,417 total requests across 4 MR runs — 3 clean, 1 bug caught
-- 96% context reduction via OpenAPI GraphRAG with 57 unit tests
+- 1,513 total requests across 3 MR runs — 2 clean, 1 bug caught
+- ~97% context reduction via OpenAPI GraphRAG with 57 unit tests
 - Works across Python, JavaScript, and TypeScript with zero agent code changes
 - Full workflow from @mention to posted report with zero human intervention
 
 ## What we learned
 
-- Context quality matters more than context quantity. GraphRAG's 96% reduction isn't about saving tokens — it's about giving the model exactly the right information so it generates accurate tests instead of hallucinating from a 19K spec.
+- Context quality matters more than context quantity. GraphRAG's ~97% reduction isn't about saving tokens — it's about giving the model exactly the right information so it generates accurate tests instead of hallucinating from a 24K spec.
 - Specialized small models for structured tasks beat general large models. But within Duo Workflow, you work with what the platform provides — so you design constraints around the model instead. GBNF grammars aren't available; prompt engineering and deterministic pipelines are.
 - Short prompts outperform detailed ones in workflow agents. The model routes tools better with less instruction. Every line in the flow prompt that isn't load-bearing is a liability.
 - Let the LLM do what LLMs are good at (understanding diffs, generating test logic) and keep everything else deterministic (report formatting, app lifecycle, schema retrieval).

@@ -18,7 +18,7 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any MR. The agen
 
 1. Reads the MR diff to identify new/changed API endpoints
 2. Routes to the correct project config via diff file paths
-3. Retrieves relevant API schemas via OpenAPI GraphRAG (96% context reduction)
+3. Retrieves relevant API schemas via OpenAPI GraphRAG (~97% context reduction)
 4. Generates a k6 script with open-model executors, per-endpoint SLO thresholds, deep response validation
 5. Commits the test to the MR branch
 6. Starts the app, runs k6, shuts everything down
@@ -30,7 +30,7 @@ No CI YAML changes. No per-project agent code. One `AGENTS.md` config file per p
 
 Feeding a full OpenAPI spec to the LLM wastes context and produces worse tests — the model hallucinates endpoints that exist in the spec but weren't changed. Kassandra solves this with a deterministic knowledge graph built from the spec's `$ref` structure using NetworkX.
 
-When an MR changes an endpoint, BFS traversal (depth 2) collects only the schemas reachable from that endpoint. On the Midas Bank spec (76 nodes, 79 edges), this reduces context from 18,777 characters to 799 — a 96% reduction. The LLM sees exactly the schemas it needs to generate accurate tests.
+When an MR changes an endpoint, BFS traversal (depth 2) collects only the schemas reachable from that endpoint. On the Midas Bank spec (104 nodes, 107 edges), this reduces context from 24,421 characters to 618 — roughly a 97% reduction. The LLM sees exactly the schemas it needs to generate accurate tests.
 
 ```
 $ echo '+@app.post("/api/transactions/transfer")' | python -m graphrag --spec openapi.json --diff-stdin
@@ -56,17 +56,14 @@ Retrieved: 4 schemas, 1 params
 
 ## Results
 
-| MR | App | Feature | Requests | Duration | Thresholds | Outcome |
-|----|-----|---------|----------|----------|------------|---------|
-| !36 | Midas Bank | Transfer rate limiting | 1,650 | 60s | 10/10 pass | Clean |
-| !37 | Midas Bank | Spending summary | 863 | 60s | 8/8 pass | Clean |
-| !38 | Midas Bank | Deposit limits | 328 | 30s | 8/8 pass | Clean |
-| !39 | Calliope Books | Search suggestions | 576 | 25s | 0/8 fail | **Caught real bug** |
-| !41 | Hestia Eats | Promotions system | — | — | — | Pending |
+| MR | App | Feature | Requests | Thresholds | Outcome |
+|----|-----|---------|----------|------------|---------|
+| !36 | Midas Bank | Transfer rate limiting | 74 | 3/3 pass | Clean |
+| !37 | Midas Bank | Spending summary | 863 | 8/8 pass | Clean |
+| !39 | Calliope Books | Search suggestions | 576 | 1/3 pass | **Caught real bug** |
+| !41 | Hestia Eats | Promotions system | — | — | Pending |
 
 MR !39 is the interesting one. Kassandra ran the test, saw a 100% failure rate on a new `/api/books/suggestions` endpoint, and diagnosed the root cause: Express.js route ordering. The route `/api/books/:id` was declared before `/api/books/suggestions`, so Express matched "suggestions" as an `:id` parameter and returned 404. The agent identified the exact fix in its report. No human intervention.
-
-Total across MRs !36–!39: 3,417 requests, 3 clean runs, 1 real bug caught.
 
 ## Demo applications
 
