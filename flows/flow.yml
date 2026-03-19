@@ -35,7 +35,8 @@ definition:
           2. list_merge_request_diffs → get the code diff
           3. read_file AGENTS.md → routing table; identify which demo app
           4. read_file demos/{app-dir}/AGENTS.md (based on diff file paths)
-          5. run_command: python3 -m graphrag --spec demos/{app-dir}/openapi.json --diff-stdin <<'DIFF'
+          5. run_command to get API context via GraphRAG:
+             python3.12 -m pip install --break-system-packages networkx -q 2>/dev/null; python3.12 -m graphrag --spec demos/{app-dir}/openapi.json --diff-stdin <<'DIFF'
              {paste diff from step 2}
              DIFF
              Use this output as API context. If it fails, fall back to: read_file demos/{app-dir}/openapi.json
