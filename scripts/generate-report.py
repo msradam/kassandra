@@ -477,10 +477,45 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
 
     # ── GraphRAG context (if available)
     if graphrag_report and graphrag_report.strip():
+        # Extract traversal header + concise endpoint list from GraphRAG output
+        graphrag_lines = graphrag_report.strip().splitlines()
+        truncated = []
+        in_endpoint = False
+        current_depth = 0
+        for gl in graphrag_lines:
+            stripped = gl.strip()
+            if stripped == "---":
+                break
+            # Keep header lines
+            if stripped.startswith("## GraphRAG") or stripped.startswith("Graph:") or stripped.startswith("Matched endpoints:") or stripped == "":
+                if not in_endpoint:
+                    truncated.append(gl)
+                continue
+            # Show endpoint names and their immediate RETURNS/ACCEPTS/HAS_PARAM edges (depth 1 only)
+            if stripped.startswith("●"):
+                in_endpoint = True
+                current_depth = 0
+                truncated.append(gl)
+                continue
+            if in_endpoint:
+                if "├─ RETURNS →" in stripped or "├─ ACCEPTS →" in stripped or "├─ REQUIRES_AUTH →" in stripped or "├─ HAS_PARAM →" in stripped:
+                    truncated.append(gl)
+                # Skip deeper nesting (schema properties)
+        # Add summary
+        total_eps = len([l for l in graphrag_lines if l.strip().startswith("●")])
+        truncated.append("")
+        # Parse node/edge counts from header
+        graph_info = ""
+        for gl in graphrag_lines[:5]:
+            if "nodes" in gl and "edges" in gl:
+                graph_info = f" over {gl.strip()}"
+                break
+        truncated.append(f"Retrieved: {total_eps} endpoints, BFS depth-2 traversal{graph_info}")
+        graphrag_text = "\n".join(truncated)
         lines.append("<details>")
         lines.append("<summary><strong>🔬 OpenAPI GraphRAG Context</strong> — Deterministic subgraph retrieval from OpenAPI spec</summary>\n")
         lines.append("```")
-        lines.append(graphrag_report.strip())
+        lines.append(graphrag_text)
         lines.append("```")
         lines.append("\n</details>\n")
 
