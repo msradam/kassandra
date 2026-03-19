@@ -173,9 +173,15 @@ echo "════════════════════════�
 echo ""
 
 # Generate HTML dashboard report alongside JSON (k6 v0.49+)
+# Redirect k6 progress output to log file to keep run_command output small for the agent
+K6_LOG="/tmp/k6-run.log"
 K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT="k6/kassandra/results/${REPORT_NAME}-report.html" \
-  k6 run --env BASE_URL="$BASE_URL" "$SCRIPT_PATH" 2>&1
+  k6 run --env BASE_URL="$BASE_URL" "$SCRIPT_PATH" > "$K6_LOG" 2>&1
 K6_EXIT=$?
+# Show only the summary (last 20 lines) instead of all progress bars
+echo "--- k6 summary ---"
+tail -20 "$K6_LOG"
+echo "--- end k6 summary ---"
 
 echo ""
 if [ $K6_EXIT -eq 0 ]; then
