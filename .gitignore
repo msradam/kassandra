@@ -33,3 +33,13 @@ summary.json
 # Tool configs
 openapitools.json
 output/
+
+# Internal strategy (not for submission)
+STRATEGY.md
+
+# Screenshots and temp files
+*.png
+*.webm
+.playwright-mcp/
+.vscode/
+slides/

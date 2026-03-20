@@ -61,7 +61,7 @@ Retrieved: 4 schemas, 1 params
 | !36 | Midas Bank | Transfer rate limiting | 74 | 2/2 pass | Clean |
 | !37 | Midas Bank | Spending summary | 863 | 8/8 pass | Clean |
 | !39 | Calliope Books | Search suggestions | 576 | 1/3 pass | **Caught real bug** |
-| !41 | Hestia Eats | Promotions system | — | — | Pending |
+| !41 | Hestia Eats | Promotions system | 728 | 8/8 pass | Clean + GraphRAG |
 
 MR !39 is the interesting one. Kassandra ran the test, saw a 100% failure rate on a new `/api/books/suggestions` endpoint, and diagnosed the root cause: Express.js route ordering. The route `/api/books/:id` was declared before `/api/books/suggestions`, so Express matched "suggestions" as an `:id` parameter and returned 404. The agent identified the exact fix in its report. No human intervention.
 
@@ -80,6 +80,22 @@ All use embedded databases or in-memory stores. Zero external dependencies. Each
 The polyglot setup exists to demonstrate that Kassandra works across stacks without code changes — only the `AGENTS.md` differs.
 
 ## Architecture
+
+```mermaid
+flowchart LR
+  A["@mention on MR"] --> B["Duo Workflow Agent"]
+  B --> C["Read MR Diff"]
+  C --> D["Route via AGENTS.md"]
+  D --> E["OpenAPI GraphRAG"]
+  E --> F["Generate k6 Script"]
+  F --> G["Commit to MR Branch"]
+  G --> H["Start App + Run k6"]
+  H --> I["Generate Report"]
+  I --> J["Post MR Comment"]
+
+  style E fill:#f9f,stroke:#333
+  style J fill:#9f9,stroke:#333
+```
 
 ### Key decisions
 
@@ -116,6 +132,34 @@ demos/
 
 tests/                        # 57 unit tests for GraphRAG
 ```
+
+## Adding Kassandra to your project
+
+Kassandra requires one file per project: `AGENTS.md`. No CI YAML. No SDK. No pipeline changes.
+
+```markdown
+# MyApp — Performance Testing Config
+
+## Application
+Node.js REST API (Express, PostgreSQL, port 3000)
+
+## Auth
+Bearer token: `test-token` (header: `Authorization: Bearer test-token`)
+
+## SLOs
+- Default: p95 < 500ms
+- Search: p95 < 800ms
+
+## k6 Script Rules
+- Include handleSummary() for JSON output to k6/kassandra/results/
+- Use constant-arrival-rate or ramping-arrival-rate executors only
+- Total wall-clock under 30 seconds
+
+## Execution Command
+bash scripts/run-k6-test.sh k6/kassandra/mr-{MR_IID}-{slug}.js myapp "" {source_branch}
+```
+
+Add an `openapi.json` spec for your API and Kassandra handles the rest — diff detection, schema retrieval, test generation, execution, and reporting.
 
 ## Running locally
 

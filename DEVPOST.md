@@ -16,11 +16,11 @@ Performance prophecy for every merge request.
 
 ## Inspiration
 
-Performance testing gets skipped. Writing k6 scripts takes time, maintaining them alongside evolving APIs is worse, and interpreting raw k6 stdout in CI logs requires expertise most teams don't have.
+AI writes code faster than ever. But who tests whether it performs under load?
 
-The result is predictable: latency regressions ship to production. An N+1 query that adds 200ms per request under load goes unnoticed until customers complain. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/).
+Performance testing gets skipped — on every team, in every sprint. Writing k6 scripts takes time, maintaining them alongside evolving APIs is worse, and interpreting raw k6 stdout in CI logs requires expertise most teams don't have. The result: latency regressions ship to production. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/).
 
-I wanted an agent that closes this gap end-to-end — from reading a code diff to posting a visual performance report in the MR. No test authoring, no CI pipeline configuration, no log parsing.
+This is the AI Paradox in action: AI accelerates code production, which means more endpoints, more features, more performance risk — but the testing that catches regressions stays manual and gets cut first. Kassandra closes this gap end-to-end: from reading a code diff to posting a visual performance report in the MR. No test authoring, no CI pipeline configuration, no log parsing.
 
 The name comes from Greek mythology. Kassandra had the gift of prophecy but was cursed so no one would believe her. This Kassandra sees your performance problems before production does, and posts the proof where you can't ignore it.
 
@@ -48,7 +48,7 @@ On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_
 | [!36](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/36) | Midas Bank (Python/FastAPI) | Transfer rate limiting | 74 | 2/2 pass | Clean |
 | [!37](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/37) | Midas Bank (Python/FastAPI) | Spending summary | 863 | 8/8 pass | Clean |
 | [!39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39) | Calliope Books (Node/Express) | Search suggestions | 576 | 1/3 pass | Bug caught |
-| [!41](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/41) | Hestia Eats (TypeScript/Hono) | Promotions | — | — | Pending |
+| [!41](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/41) | Hestia Eats (TypeScript/Hono) | Promotions | 728 | 8/8 pass | Clean + GraphRAG visible |
 
 ## How I built it
 
@@ -105,6 +105,7 @@ All use embedded databases or in-memory stores. Zero external dependencies. Each
 - Duo Workflow agents break when prompts get long. I hit a wall around ~60 lines of flow prompt — the agent started looping on the same tool call. Cutting to 20 lines and moving the rules to `agent.yml` fixed it immediately.
 - Don't let the LLM generate Mermaid. I tried. It works 80% of the time, which means 20% of reports have broken charts. Deterministic generation from k6 JSON is boring but it works every time.
 - C++ matters even in an LLM pipeline. [NetworKit](https://networkit.github.io/) runs graph algorithms significantly faster than pure-Python NetworkX ([Staudt et al., 2016](https://doi.org/10.1017/nws.2016.20)). I used NetworkX here because the specs are small enough, but for production-scale OpenAPI specs this would matter.
+- The AI Paradox is real. AI generates more code faster, which means more performance risk. The tooling for catching that risk hasn't kept up. Kassandra is a step toward closing that loop.
 
 ## What's next for Kassandra
 
