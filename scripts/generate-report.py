@@ -512,8 +512,10 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
                 break
         truncated.append(f"Retrieved: {total_eps} endpoints, BFS depth-2 traversal{graph_info}")
         graphrag_text = "\n".join(truncated)
+        # Calculate context reduction for display
+        graphrag_chars = len(graphrag_report.strip())
         lines.append("<details>")
-        lines.append("<summary><strong>🔬 OpenAPI GraphRAG Context</strong> — Deterministic subgraph retrieval from OpenAPI spec</summary>\n")
+        lines.append(f"<summary><strong>🔬 OpenAPI GraphRAG Context</strong> — Deterministic subgraph retrieval ({graphrag_chars:,} chars retrieved, zero LLM calls)</summary>\n")
         lines.append("```")
         lines.append(graphrag_text)
         lines.append("```")
