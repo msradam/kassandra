@@ -1,4 +1,4 @@
-// demos/hestia-eats/node_modules/hono/dist/compose.js
+// node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -42,7 +42,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// demos/hestia-eats/node_modules/hono/dist/http-exception.js
+// node_modules/hono/dist/http-exception.js
 var HTTPException = class extends Error {
   res;
   status;
@@ -75,10 +75,10 @@ var HTTPException = class extends Error {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/request/constants.js
+// node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = /* @__PURE__ */ Symbol();
 
-// demos/hestia-eats/node_modules/hono/dist/utils/body.js
+// node_modules/hono/dist/utils/body.js
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
   const { all = false, dot = false } = options;
   const headers = request instanceof HonoRequest ? request.raw.headers : request.headers;
@@ -150,7 +150,7 @@ var handleParsingNestedValues = (form, key, value) => {
   });
 };
 
-// demos/hestia-eats/node_modules/hono/dist/utils/url.js
+// node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") {
@@ -354,7 +354,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// demos/hestia-eats/node_modules/hono/dist/request.js
+// node_modules/hono/dist/request.js
 var tryDecodeURIComponent = (str) => tryDecode(str, decodeURIComponent_);
 var HonoRequest = class {
   /**
@@ -622,7 +622,7 @@ var HonoRequest = class {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/utils/html.js
+// node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -664,7 +664,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/context.js
+// node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType, headers) => {
   return {
@@ -1071,7 +1071,7 @@ var Context = class {
   };
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router.js
+// node_modules/hono/dist/router.js
 var METHOD_NAME_ALL = "ALL";
 var METHOD_NAME_ALL_LOWERCASE = "all";
 var METHODS = ["get", "post", "put", "delete", "options", "patch"];
@@ -1079,10 +1079,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// demos/hestia-eats/node_modules/hono/dist/utils/constants.js
+// node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// demos/hestia-eats/node_modules/hono/dist/hono-base.js
+// node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -1453,7 +1453,7 @@ var Hono = class _Hono {
   };
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/reg-exp-router/matcher.js
+// node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -1474,7 +1474,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// demos/hestia-eats/node_modules/hono/dist/router/reg-exp-router/node.js
+// node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var ONLY_WILDCARD_REG_EXP_STR = ".*";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
@@ -1582,7 +1582,7 @@ var Node = class _Node {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/reg-exp-router/trie.js
+// node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -1638,7 +1638,7 @@ var Trie = class {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/reg-exp-router/router.js
+// node_modules/hono/dist/router/reg-exp-router/router.js
 var nullMatcher = [/^$/, [], /* @__PURE__ */ Object.create(null)];
 var wildcardRegExpCache = /* @__PURE__ */ Object.create(null);
 function buildWildcardRegExp(path) {
@@ -1817,7 +1817,7 @@ var RegExpRouter = class {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/smart-router/router.js
+// node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -1872,7 +1872,7 @@ var SmartRouter = class {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/trie-router/node.js
+// node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = /* @__PURE__ */ Object.create(null);
 var hasChildren = (children) => {
   for (const _ in children) {
@@ -2047,7 +2047,7 @@ var Node2 = class _Node2 {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/router/trie-router/router.js
+// node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node;
@@ -2069,7 +2069,7 @@ var TrieRouter = class {
   }
 };
 
-// demos/hestia-eats/node_modules/hono/dist/hono.js
+// node_modules/hono/dist/hono.js
 var Hono2 = class extends Hono {
   /**
    * Creates an instance of the Hono class.
@@ -2084,7 +2084,7 @@ var Hono2 = class extends Hono {
   }
 };
 
-// demos/hestia-eats/node_modules/@hono/node-server/dist/index.mjs
+// node_modules/@hono/node-server/dist/index.mjs
 import { createServer as createServerHTTP } from "http";
 import { Http2ServerRequest as Http2ServerRequest2 } from "http2";
 import { Http2ServerRequest } from "http2";
@@ -2655,7 +2655,7 @@ var serve = (options, listeningListener) => {
   return server;
 };
 
-// demos/hestia-eats/node_modules/hono/dist/utils/crypto.js
+// node_modules/hono/dist/utils/crypto.js
 var sha256 = async (data) => {
   const algorithm = { name: "SHA-256", alias: "sha256" };
   const hash = await createHash(data, algorithm);
@@ -2684,7 +2684,7 @@ var createHash = async (data, algorithm) => {
   return null;
 };
 
-// demos/hestia-eats/node_modules/hono/dist/utils/buffer.js
+// node_modules/hono/dist/utils/buffer.js
 var constantTimeEqualString = (a, b) => {
   const aLen = a.length;
   const bLen = b.length;
@@ -2723,7 +2723,7 @@ var timingSafeEqual = async (a, b, hashFunction) => {
   return timingSafeEqualString(sa, sb);
 };
 
-// demos/hestia-eats/node_modules/hono/dist/middleware/bearer-auth/index.js
+// node_modules/hono/dist/middleware/bearer-auth/index.js
 var TOKEN_STRINGS = "[A-Za-z0-9._~+/-]+=*";
 var PREFIX = "Bearer";
 var HEADER = "Authorization";
@@ -2811,7 +2811,7 @@ var bearerAuth = (options) => {
   };
 };
 
-// demos/hestia-eats/app.ts
+// app.ts
 var app = new Hono2();
 var AUTH_TOKEN = "hestia-bearer-token-2026";
 var users = [
@@ -3105,6 +3105,42 @@ app.get("/api/promotions/:id", (c) => {
   entry.menu_item_count = entry.menu_items.length;
   return c.json(entry);
 });
+app.get("/api/reviews/summary", (c) => {
+  const summary = [];
+  for (const rest of restaurants) {
+    const restReviews = reviews.filter((r) => r.restaurant_id === rest.id);
+    if (restReviews.length === 0) continue;
+    const avgRating = Math.round(restReviews.reduce((s, r) => s + r.rating, 0) / restReviews.length * 10) / 10;
+    const reviewDetails = restReviews.map((rev) => {
+      const user = users.find((u) => u.id === rev.user_id);
+      return { ...rev, user_name: user?.name ?? "Unknown" };
+    });
+    summary.push({
+      restaurant_id: rest.id,
+      restaurant_name: rest.name,
+      cuisine: rest.cuisine,
+      review_count: restReviews.length,
+      average_rating: avgRating,
+      highest_rated: Math.max(...restReviews.map((r) => r.rating)),
+      lowest_rated: Math.min(...restReviews.map((r) => r.rating)),
+      recent_reviews: reviewDetails.slice(-3)
+    });
+  }
+  return c.json({ summary, total_restaurants: summary.length, total_reviews: reviews.length });
+});
+app.get("/api/reviews/:id", (c) => {
+  const review = reviews.find((r) => r.id === parseInt(c.req.param("id")));
+  if (!review) return c.json({ error: "Review not found" }, 404);
+  const rest = restaurants.find((r) => r.id === review.restaurant_id);
+  const user = users.find((u) => u.id === review.user_id);
+  const order = orders.find((o) => o.id === review.order_id);
+  return c.json({
+    ...review,
+    restaurant: rest ? { name: rest.name, cuisine: rest.cuisine } : null,
+    user_name: user?.name ?? "Unknown",
+    order_total: order?.total ?? null
+  });
+});
 console.log(`Hestia Eats starting on :8080`);
-console.log(`Endpoints: 20 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length} | Promotions: ${promotions.length}`);
+console.log(`Endpoints: 22 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length} | Promotions: ${promotions.length}`);
 serve({ fetch: app.fetch, port: 8080 });

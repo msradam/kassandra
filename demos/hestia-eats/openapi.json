@@ -707,6 +707,43 @@
             }
           }
         ]
+      },
+      "ReviewSummaryEntry": {
+        "type": "object",
+        "required": ["restaurant_id", "restaurant_name", "cuisine", "review_count", "average_rating"],
+        "properties": {
+          "restaurant_id": {"type": "integer"},
+          "restaurant_name": {"type": "string"},
+          "cuisine": {"type": "string"},
+          "review_count": {"type": "integer"},
+          "average_rating": {"type": "number", "format": "float"},
+          "highest_rated": {"type": "integer"},
+          "lowest_rated": {"type": "integer"},
+          "recent_reviews": {"type": "array", "items": {"$ref": "#/components/schemas/Review"}}
+        }
+      },
+      "ReviewSummaryResponse": {
+        "type": "object",
+        "required": ["summary", "total_restaurants", "total_reviews"],
+        "properties": {
+          "summary": {"type": "array", "items": {"$ref": "#/components/schemas/ReviewSummaryEntry"}},
+          "total_restaurants": {"type": "integer"},
+          "total_reviews": {"type": "integer"}
+        }
+      },
+      "ReviewDetail": {
+        "type": "object",
+        "allOf": [
+          {"$ref": "#/components/schemas/Review"},
+          {
+            "type": "object",
+            "properties": {
+              "restaurant": {"type": "object", "properties": {"name": {"type": "string"}, "cuisine": {"type": "string"}}},
+              "user_name": {"type": "string"},
+              "order_total": {"type": "number", "format": "float", "nullable": true}
+            }
+          }
+        ]
       }
     }
   },
@@ -1537,6 +1574,62 @@
           },
           "404": {
             "description": "Promotion not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/summary": {
+      "get": {
+        "summary": "Get review analytics summary",
+        "description": "Aggregated review statistics per restaurant with recent reviews. Uses N+1 pattern for restaurant and user enrichment.",
+        "operationId": "getReviewSummary",
+        "responses": {
+          "200": {
+            "description": "Review summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews/{id}": {
+      "get": {
+        "summary": "Get review details",
+        "description": "Get a single review enriched with restaurant, user, and order details.",
+        "operationId": "getReviewDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Review detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Review not found",
             "content": {
               "application/json": {
                 "schema": {

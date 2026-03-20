@@ -358,9 +358,49 @@ app.get('/api/promotions/:id', (c) => {
   return c.json(entry)
 })
 
+// ── Review Analytics ──
+
+app.get('/api/reviews/summary', (c) => {
+  // N+1: for each restaurant, scan all reviews and fetch restaurant details
+  const summary: Record<string, unknown>[] = []
+  for (const rest of restaurants) {
+    const restReviews = reviews.filter((r) => r.restaurant_id === rest.id)
+    if (restReviews.length === 0) continue
+    const avgRating = Math.round(restReviews.reduce((s, r) => s + r.rating, 0) / restReviews.length * 10) / 10
+    // Iterative lookup: fetch each reviewer's name
+    const reviewDetails = restReviews.map((rev) => {
+      const user = users.find((u) => u.id === rev.user_id)
+      return { ...rev, user_name: user?.name ?? 'Unknown' }
+    })
+    summary.push({
+      restaurant_id: rest.id, restaurant_name: rest.name, cuisine: rest.cuisine,
+      review_count: restReviews.length, average_rating: avgRating,
+      highest_rated: Math.max(...restReviews.map((r) => r.rating)),
+      lowest_rated: Math.min(...restReviews.map((r) => r.rating)),
+      recent_reviews: reviewDetails.slice(-3),
+    })
+  }
+  return c.json({ summary, total_restaurants: summary.length, total_reviews: reviews.length })
+})
+
+app.get('/api/reviews/:id', (c) => {
+  const review = reviews.find((r) => r.id === parseInt(c.req.param('id')))
+  if (!review) return c.json({ error: 'Review not found' }, 404)
+  // Enrich with restaurant and user details
+  const rest = restaurants.find((r) => r.id === review.restaurant_id)
+  const user = users.find((u) => u.id === review.user_id)
+  const order = orders.find((o) => o.id === review.order_id)
+  return c.json({
+    ...review,
+    restaurant: rest ? { name: rest.name, cuisine: rest.cuisine } : null,
+    user_name: user?.name ?? 'Unknown',
+    order_total: order?.total ?? null,
+  })
+})
+
 // ── Start ──
 
 console.log(`Hestia Eats starting on :8080`)
-console.log(`Endpoints: 20 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length} | Promotions: ${promotions.length}`)
+console.log(`Endpoints: 22 | Restaurants: ${restaurants.length} | Menu items: ${menuItems.length} | Promotions: ${promotions.length}`)
 
 serve({ fetch: app.fetch, port: 8080 })
