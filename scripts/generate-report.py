@@ -306,6 +306,14 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
         v = global_duration
         lines.append("### Latency Percentiles\n")
         lines.append("```mermaid")
+        lines.append("---")
+        lines.append("config:")
+        lines.append("  theme: base")
+        lines.append("  themeVariables:")
+        lines.append('    xyChart:')
+        lines.append('      backgroundColor: "#f8f9fa"')
+        lines.append('      plotColorPalette: "#7c3aed, #7c3aed, #7c3aed, #f59e0b, #ef4444, #ef4444"')
+        lines.append("---")
         lines.append("xychart-beta")
         lines.append('  title "Response Time Distribution (ms)"')
         lines.append('  x-axis ["min", "avg", "med", "p90", "p95", "max"]')
@@ -321,6 +329,14 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
     if endpoint_metrics:
         lines.append("### p95 Latency by Endpoint\n")
         lines.append("```mermaid")
+        lines.append("---")
+        lines.append("config:")
+        lines.append("  theme: base")
+        lines.append("  themeVariables:")
+        lines.append('    xyChart:')
+        lines.append('      backgroundColor: "#f8f9fa"')
+        lines.append('      plotColorPalette: "#06b6d4"')
+        lines.append("---")
         lines.append("xychart-beta")
         lines.append('  title "p95 Latency by Endpoint (ms)"')
         ep_names = sorted(endpoint_metrics.keys())
@@ -361,6 +377,7 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
     # Mermaid pie chart for timing breakdown (where time goes)
     if len(timing_chart_data) >= 2:
         lines.append("```mermaid")
+        lines.append("%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#7c3aed', 'pie2': '#06b6d4', 'pie3': '#f59e0b', 'pie4': '#10b981', 'pie5': '#ef4444', 'pie6': '#8b5cf6'}}}%%")
         lines.append('pie title "Where Time is Spent (avg ms)"')
         for label, avg in timing_chart_data:
             lines.append(f'  "{label} ({_fmt(avg)}ms)" : {avg:.2f}')
@@ -403,6 +420,7 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
         if passed + failed > 0:
             lines.append("### Check Results\n")
             lines.append("```mermaid")
+            lines.append("%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#10b981', 'pie2': '#ef4444'}}}%%")
             lines.append('pie title "Validation Checks"')
             lines.append(f'  "Passed ({passed})" : {passed}')
             if failed > 0:
@@ -464,6 +482,7 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
         # Mermaid Gantt chart for scenario timeline
         if gantt_tasks:
             lines.append("```mermaid")
+            lines.append("%%{init: {'theme': 'base', 'themeVariables': {'taskBkgColor': '#7c3aed', 'taskTextColor': '#fff', 'activeTaskBkgColor': '#06b6d4', 'gridColor': '#e5e7eb'}}}%%")
             lines.append("gantt")
             lines.append("  title Load Test Timeline")
             lines.append("  dateFormat ss")
