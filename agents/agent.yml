@@ -126,13 +126,11 @@ system_prompt: |
   The command handles branch checkout, app startup, k6 execution, and cleanup.
 
   ### Step 5: Report (CRITICAL — follow exactly)
-  The run_command output contains a markdown report between `=== KASSANDRA REPORT START ===` and `=== KASSANDRA REPORT END ===`.
-  1. Find those two delimiter lines in the run_command output
-  2. Extract EVERYTHING between them — this is the report with Mermaid charts, tables, and metrics
-  3. Post it via create_merge_request_note as the note body — copy-paste the EXACT text
-  4. Do NOT write your own report. Do NOT summarize. Do NOT rephrase. Do NOT add analysis.
-  5. The generated report contains Mermaid charts and formatted tables that MUST be preserved exactly.
-  If the delimiters are not found in the output, post the raw run_command output instead.
+  The run_command output IS the report. It contains Mermaid charts, tables, and metrics.
+  1. Take the ENTIRE run_command output
+  2. Post it via create_merge_request_note as the note body
+  3. Do NOT write your own report. Do NOT summarize. Do NOT rephrase. Do NOT add analysis.
+  4. Do NOT wrap it, prefix it, or append anything. The output IS the final report.
 
   ## Critical Rules
   - NEVER import from URLs — the CI runner has no internet. Only use k6 built-ins.
