@@ -123,18 +123,16 @@ RISK_PYTHON=$(command -v python3.12 || command -v python3)
 mkdir -p k6/kassandra/results
 
 # Auto-detect diff: try explicit branch, then current HEAD vs origin/main
-# Exclude k6/ directory — we only want app code changes, not generated test scripts
+# Filter to app code only (demos/ directory), exclude generated k6 test scripts
 DIFF_TEXT=""
 if [ -n "$BRANCH" ]; then
-  DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- 'demos/' 2>/dev/null || echo "")
 fi
 if [ -z "$DIFF_TEXT" ]; then
-  # Fallback: compare current HEAD against origin/main (works after branch checkout or if already on branch)
-  DIFF_TEXT=$(git diff origin/main...HEAD -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main...HEAD -- 'demos/' 2>/dev/null || echo "")
 fi
 if [ -z "$DIFF_TEXT" ]; then
-  # Last resort: compare working tree against origin/main
-  DIFF_TEXT=$(git diff origin/main -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main -- 'demos/' 2>/dev/null || echo "")
 fi
 
 if [ -n "$DIFF_TEXT" ]; then
