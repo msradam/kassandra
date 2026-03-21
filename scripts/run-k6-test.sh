@@ -18,6 +18,12 @@ APP_TYPE="${2:?Usage: run-k6-test.sh <script-path> <app-type> [base-url] [branch
 BASE_URL="${3:-}"
 BRANCH="${4:-}"
 
+# ── Redirect all operational output to log file ──
+# ONLY the final report goes to real stdout so the agent can post it verbatim.
+RUN_LOG="/tmp/kassandra-run.log"
+exec 3>&1            # fd 3 = real stdout (for the report)
+exec 1>"$RUN_LOG" 2>&1  # everything else → log
+
 # ── Step 0: Preserve scripts from main, then checkout MR source branch ──
 # Scripts must stay at the main branch version even when we checkout the MR branch,
 # because the MR branch may not have the latest report generator / risk analyzer.
@@ -254,10 +260,9 @@ if [ -f "$JSON_RESULT" ]; then
   $PYTHON scripts/generate-report.py $REPORT_ARGS 2>&1 | tail -3 || echo "WARNING: Report generation failed"
   MD_RESULT="k6/kassandra/results/${REPORT_NAME}-report.md"
   if [ -f "$MD_RESULT" ]; then
-    echo ""
-    echo "=== KASSANDRA REPORT START ==="
-    cat "$MD_RESULT"
-    echo "=== KASSANDRA REPORT END ==="
+    echo "Report generated: $MD_RESULT"
+    # Write ONLY the report to real stdout (fd 3) — this is all the agent sees
+    cat "$MD_RESULT" >&3
   fi
 fi
 
@@ -265,6 +270,15 @@ fi
 echo ""
 echo "Result files:"
 ls -la k6/kassandra/results/ 2>/dev/null || echo "(no result files)"
+echo ""
+echo "Full run log: $RUN_LOG"
+
+# If no report was generated, send error message to real stdout so agent has something to post
+if [ ! -f "$MD_RESULT" ] || [ ! -s "$MD_RESULT" ]; then
+  echo "ERROR: Kassandra report generation failed. Check run log for details." >&3
+  echo "--- Last 30 lines of run log ---" >&3
+  tail -30 "$RUN_LOG" >&3
+fi
 
 # cleanup via trap
 exit $K6_EXIT
