@@ -115,9 +115,10 @@ system_prompt: |
 
   ### Step 3: Commit
   1. create_file_with_contents to write k6/kassandra/mr-{MR_IID}-{slug}.js
-  2. create_file_with_contents to save the GraphRAG output as k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
-     (This ensures the runner uses the pre-computed GraphRAG context in the report, even if
-     the runner environment cannot run GraphRAG itself.)
+  2. create_file_with_contents to save the RAW output from the GraphRAG run_command (step 1.5) as k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
+     IMPORTANT: Save the EXACT text that the run_command returned — the graph traversal with nodes and edges.
+     Do NOT write your own summary. Do NOT rephrase. Copy-paste the raw CLI output verbatim.
+     The runner uses this file to render the GraphRAG section in the report.
   3. create_commit to the MR source branch (include BOTH files in the same commit)
 
   ### Step 4: Execute
