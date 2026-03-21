@@ -452,6 +452,65 @@ def get_statement(
     }
 
 
+# ── Spending Trends ──
+
+
+@app.get("/api/accounts/{account_id}/spending-trends")
+def spending_trends(
+    account_id: int,
+    days: int = 90,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    acct = db.execute(
+        "SELECT * FROM accounts WHERE id = ? AND user_id = ?", (account_id, user["id"])
+    ).fetchone()
+    if not acct:
+        raise HTTPException(404, "Account not found")
+
+    txns = db.execute(
+        "SELECT * FROM transactions WHERE from_account_id = ? "
+        "AND created_at >= datetime('now', ?) ORDER BY created_at DESC",
+        (account_id, f"-{days} days"),
+    ).fetchall()
+
+    # N+1 pattern: for each transaction, look up the recipient account
+    enriched = []
+    for tx in txns:
+        recipient = db.execute(
+            "SELECT a.name, u.username FROM accounts a JOIN users u ON a.user_id = u.id WHERE a.id = ?",
+            (tx["to_account_id"],),
+        ).fetchone()
+        enriched.append({
+            "id": tx["id"],
+            "amount": tx["amount"],
+            "type": tx["type"],
+            "description": tx["description"],
+            "date": tx["created_at"],
+            "recipient_account": recipient["name"] if recipient else "External",
+            "recipient_user": recipient["username"] if recipient else "unknown",
+        })
+
+    # Aggregate by type
+    by_type: dict = {}
+    for e in enriched:
+        t = e["type"]
+        if t not in by_type:
+            by_type[t] = {"count": 0, "total": 0.0}
+        by_type[t]["count"] += 1
+        by_type[t]["total"] += e["amount"]
+
+    return {
+        "account_id": account_id,
+        "account_name": acct["name"],
+        "period_days": days,
+        "total_spent": round(sum(e["amount"] for e in enriched), 2),
+        "transaction_count": len(enriched),
+        "by_type": by_type,
+        "recent_transactions": enriched[:10],
+    }
+
+
 # ── Health ──
 
 

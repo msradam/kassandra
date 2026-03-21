@@ -495,10 +495,95 @@
           }
         }
       }
+    },
+    "/api/accounts/{account_id}/spending-trends": {
+      "get": {
+        "summary": "Get spending trends with recipient enrichment (N+1 pattern)",
+        "operationId": "spending_trends",
+        "tags": ["accounts"],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": { "type": "integer", "default": 90 },
+            "description": "Number of days to analyze"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Bearer token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spending trends with breakdown by type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingTrends"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "SpendingTrends": {
+        "type": "object",
+        "required": ["account_id", "account_name", "period_days", "total_spent", "transaction_count", "by_type", "recent_transactions"],
+        "properties": {
+          "account_id": { "type": "integer" },
+          "account_name": { "type": "string" },
+          "period_days": { "type": "integer" },
+          "total_spent": { "type": "number" },
+          "transaction_count": { "type": "integer" },
+          "by_type": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TypeBreakdown"
+            }
+          },
+          "recent_transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnrichedTransaction"
+            }
+          }
+        }
+      },
+      "TypeBreakdown": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "total": { "type": "number" }
+        }
+      },
+      "EnrichedTransaction": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "amount": { "type": "number" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "date": { "type": "string" },
+          "recipient_account": { "type": "string" },
+          "recipient_user": { "type": "string" }
+        }
+      },
       "AccountCreate": {
         "properties": {
           "name": {
