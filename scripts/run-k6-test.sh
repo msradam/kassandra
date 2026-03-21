@@ -146,8 +146,9 @@ fi
 # ── Step 3b: GraphRAG context retrieval ──
 GRAPHRAG_REPORT=""
 # Check for pre-computed GraphRAG file first (committed alongside k6 script)
+# Validate it contains the real CLI output header — agents sometimes hallucinate this file
 PRECOMPUTED_GRAPHRAG="k6/kassandra/${REPORT_NAME}-graphrag.md"
-if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ]; then
+if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ] && grep -q "## GraphRAG Traversal" "$PRECOMPUTED_GRAPHRAG"; then
   GRAPHRAG_REPORT="$PRECOMPUTED_GRAPHRAG"
   echo "Using pre-computed GraphRAG: $PRECOMPUTED_GRAPHRAG ($(wc -l < "$PRECOMPUTED_GRAPHRAG") lines)"
 elif [ -n "$DIFF_TEXT" ]; then
