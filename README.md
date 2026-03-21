@@ -28,7 +28,7 @@ No CI YAML changes. No per-project agent code. One `AGENTS.md` config file per p
 
 ## OpenAPI GraphRAG
 
-Feeding a full OpenAPI spec to the LLM wastes context and produces worse tests — the model hallucinates endpoints that exist in the spec but weren't changed. Kassandra solves this with a deterministic knowledge graph built from the spec's `$ref` structure using NetworkX.
+Feeding a full OpenAPI spec to the LLM wastes context and produces worse tests — the model hallucinates endpoints that exist in the spec but weren't changed. Kassandra solves this with a deterministic knowledge graph built from the spec's `$ref` structure — zero external dependencies.
 
 When an MR changes an endpoint, BFS traversal (depth 2) collects only the schemas reachable from that endpoint. On the Midas Bank spec (104 nodes, 107 edges), this reduces context from 24,421 characters to 618 — roughly a 97% reduction. The LLM sees exactly the schemas it needs to generate accurate tests.
 
@@ -116,7 +116,7 @@ agents/agent.yml              # Agent definition (system prompt + tools)
 flows/flow.yml                # Duo Workflow orchestration
 
 graphrag/                     # OpenAPI GraphRAG module
-  builder.py                  # OpenAPI spec -> NetworkX directed graph
+  builder.py                  # OpenAPI spec -> directed graph (zero deps)
   retriever.py                # Subgraph retrieval + diff parsing
   cli.py                      # CLI entry point
 
