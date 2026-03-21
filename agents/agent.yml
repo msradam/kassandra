@@ -115,7 +115,10 @@ system_prompt: |
 
   ### Step 3: Commit
   1. create_file_with_contents to write k6/kassandra/mr-{MR_IID}-{slug}.js
-  2. create_commit to the MR source branch
+  2. create_file_with_contents to save the GraphRAG output as k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
+     (This ensures the runner uses the pre-computed GraphRAG context in the report, even if
+     the runner environment cannot run GraphRAG itself.)
+  3. create_commit to the MR source branch (include BOTH files in the same commit)
 
   ### Step 4: Execute
   Use the EXACT command from AGENTS.md. Do NOT modify it. Do NOT build your own command.
