@@ -118,17 +118,18 @@ RISK_PYTHON=$(command -v python3.12 || command -v python3)
 mkdir -p k6/kassandra/results
 
 # Auto-detect diff: try explicit branch, then current HEAD vs origin/main
+# Exclude k6/ directory — we only want app code changes, not generated test scripts
 DIFF_TEXT=""
 if [ -n "$BRANCH" ]; then
-  DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main..."$BRANCH" -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
 fi
 if [ -z "$DIFF_TEXT" ]; then
   # Fallback: compare current HEAD against origin/main (works after branch checkout or if already on branch)
-  DIFF_TEXT=$(git diff origin/main...HEAD -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main...HEAD -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
 fi
 if [ -z "$DIFF_TEXT" ]; then
   # Last resort: compare working tree against origin/main
-  DIFF_TEXT=$(git diff origin/main -- '*.py' '*.js' '*.ts' '*.rb' '*.go' 2>/dev/null || echo "")
+  DIFF_TEXT=$(git diff origin/main -- '*.py' '*.js' '*.ts' '*.rb' '*.go' ':!k6/' 2>/dev/null || echo "")
 fi
 
 if [ -n "$DIFF_TEXT" ]; then
@@ -148,7 +149,11 @@ GRAPHRAG_REPORT=""
 # Check for pre-computed GraphRAG file first (committed alongside k6 script)
 # Validate it contains the real CLI output header — agents sometimes hallucinate this file
 PRECOMPUTED_GRAPHRAG="k6/kassandra/${REPORT_NAME}-graphrag.md"
-if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ] && grep -q "## GraphRAG Traversal" "$PRECOMPUTED_GRAPHRAG"; then
+# Validate pre-computed file: must have real CLI output (header + matched endpoints > 0)
+# Agents hallucinate this file — check for the exact BFS output pattern with non-zero results
+if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ] \
+    && grep -q "## GraphRAG Traversal" "$PRECOMPUTED_GRAPHRAG" \
+    && grep -qE "Matched endpoints: [1-9]" "$PRECOMPUTED_GRAPHRAG"; then
   GRAPHRAG_REPORT="$PRECOMPUTED_GRAPHRAG"
   echo "Using pre-computed GraphRAG: $PRECOMPUTED_GRAPHRAG ($(wc -l < "$PRECOMPUTED_GRAPHRAG") lines)"
 elif [ -n "$DIFF_TEXT" ]; then
