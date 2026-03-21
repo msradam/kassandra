@@ -358,6 +358,65 @@ app.get('/api/promotions/:id', (c) => {
   return c.json(entry)
 })
 
+// ── Review Analytics ──
+
+app.get('/api/restaurants/:restaurant_id/analytics', (c) => {
+  const rid = parseInt(c.req.param('restaurant_id'))
+  const rest = restaurants.find((r) => r.id === rid)
+  if (!rest) return c.json({ error: 'Restaurant not found' }, 404)
+
+  const restReviews = reviews.filter((r) => r.restaurant_id === rid)
+  if (restReviews.length === 0) {
+    return c.json({
+      restaurant_id: rid,
+      restaurant_name: rest.name,
+      total_reviews: 0,
+      average_rating: 0,
+      rating_distribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+      recent_reviews: [],
+    })
+  }
+
+  // Rating distribution
+  const distribution: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }
+  let totalRating = 0
+  for (const review of restReviews) {
+    distribution[String(review.rating)] = (distribution[String(review.rating)] || 0) + 1
+    totalRating += review.rating
+  }
+
+  // N+1 pattern: for each review, look up the order to get order total
+  const enrichedReviews = restReviews.map((review) => {
+    const entry: Record<string, unknown> = { ...review }
+    for (const order of orders) {
+      if (order.id === review.order_id) {
+        entry.order_total = order.total
+        entry.order_status = order.status
+        entry.order_items_count = order.items.length
+        // Nested lookup: get user info for the review
+        for (const user of users) {
+          if (user.id === review.user_id) {
+            entry.reviewer_name = user.name
+            break
+          }
+        }
+        break
+      }
+    }
+    return entry
+  })
+
+  return c.json({
+    restaurant_id: rid,
+    restaurant_name: rest.name,
+    cuisine: rest.cuisine,
+    total_reviews: restReviews.length,
+    average_rating: parseFloat((totalRating / restReviews.length).toFixed(1)),
+    rating_distribution: distribution,
+    recent_reviews: enrichedReviews,
+  })
+})
+
 // ── Start ──
 
 console.log(`Hestia Eats starting on :8080`)

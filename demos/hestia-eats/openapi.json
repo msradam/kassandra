@@ -563,10 +563,12 @@
             "type": "string"
           },
           "discount_pct": {
-            "type": "number"
+            "type": "number",
+            "format": "float"
           },
           "min_order": {
-            "type": "number"
+            "type": "number",
+            "format": "float"
           },
           "promo_code": {
             "type": "string"
@@ -589,7 +591,8 @@
             "type": "string"
           },
           "restaurant_rating": {
-            "type": "number"
+            "type": "number",
+            "format": "float"
           }
         }
       },
@@ -613,100 +616,120 @@
       },
       "PromotionDetail": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Promotion"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "restaurant": {
+                "$ref": "#/components/schemas/Restaurant"
+              },
+              "menu_items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MenuItem"
+                }
+              },
+              "menu_item_count": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "ReviewAnalytics": {
+        "type": "object",
         "required": [
-          "id",
           "restaurant_id",
-          "title",
-          "discount_pct",
-          "is_active"
+          "restaurant_name",
+          "total_reviews",
+          "average_rating",
+          "rating_distribution",
+          "recent_reviews"
         ],
         "properties": {
+          "restaurant_id": {
+            "type": "integer"
+          },
+          "restaurant_name": {
+            "type": "string"
+          },
+          "cuisine": {
+            "type": "string"
+          },
+          "total_reviews": {
+            "type": "integer"
+          },
+          "average_rating": {
+            "type": "number"
+          },
+          "rating_distribution": {
+            "type": "object",
+            "properties": {
+              "1": {
+                "type": "integer"
+              },
+              "2": {
+                "type": "integer"
+              },
+              "3": {
+                "type": "integer"
+              },
+              "4": {
+                "type": "integer"
+              },
+              "5": {
+                "type": "integer"
+              }
+            }
+          },
+          "recent_reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnrichedReview"
+            }
+          }
+        }
+      },
+      "EnrichedReview": {
+        "type": "object",
+        "properties": {
           "id": {
+            "type": "integer"
+          },
+          "user_id": {
             "type": "integer"
           },
           "restaurant_id": {
             "type": "integer"
           },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "discount_pct": {
-            "type": "number"
-          },
-          "min_order": {
-            "type": "number"
-          },
-          "promo_code": {
-            "type": "string"
-          },
-          "is_active": {
-            "type": "boolean"
-          },
-          "starts_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "restaurant": {
-            "$ref": "#/components/schemas/Restaurant"
-          },
-          "menu_items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MenuItem"
-            }
-          },
-          "menu_item_count": {
+          "order_id": {
             "type": "integer"
+          },
+          "rating": {
+            "type": "integer"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "order_total": {
+            "type": "number"
+          },
+          "order_status": {
+            "type": "string"
+          },
+          "order_items_count": {
+            "type": "integer"
+          },
+          "reviewer_name": {
+            "type": "string"
           }
         }
-      },
-      "Promotion": {
-        "type": "object",
-        "required": ["id", "restaurant_id", "title", "discount_pct", "is_active"],
-        "properties": {
-          "id": {"type": "integer"},
-          "restaurant_id": {"type": "integer"},
-          "title": {"type": "string"},
-          "description": {"type": "string"},
-          "discount_pct": {"type": "number", "format": "float"},
-          "min_order": {"type": "number", "format": "float"},
-          "promo_code": {"type": "string"},
-          "is_active": {"type": "boolean"},
-          "starts_at": {"type": "string", "format": "date-time"},
-          "expires_at": {"type": "string", "format": "date-time"},
-          "restaurant_name": {"type": "string"},
-          "restaurant_cuisine": {"type": "string"},
-          "restaurant_rating": {"type": "number", "format": "float"}
-        }
-      },
-      "PromotionListResponse": {
-        "type": "object",
-        "required": ["promotions", "total"],
-        "properties": {
-          "promotions": {"type": "array", "items": {"$ref": "#/components/schemas/Promotion"}},
-          "total": {"type": "integer"}
-        }
-      },
-      "PromotionDetail": {
-        "type": "object",
-        "allOf": [
-          {"$ref": "#/components/schemas/Promotion"},
-          {
-            "type": "object",
-            "properties": {
-              "restaurant": {"$ref": "#/components/schemas/Restaurant"},
-              "menu_items": {"type": "array", "items": {"$ref": "#/components/schemas/MenuItem"}},
-              "menu_item_count": {"type": "integer"}
-            }
-          }
-        ]
       }
     }
   },
@@ -1403,80 +1426,6 @@
     },
     "/api/promotions": {
       "get": {
-        "operationId": "listPromotions",
-        "summary": "List promotions with restaurant enrichment (N+1 pattern)",
-        "parameters": [
-          {"name": "active", "in": "query", "schema": {"type": "string", "enum": ["true", "false"], "default": "true"}, "description": "Filter active promotions only (default true)"},
-          {"name": "restaurant_id", "in": "query", "schema": {"type": "integer"}, "description": "Filter by restaurant"}
-        ],
-        "responses": {
-          "200": {
-            "description": "List of promotions",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionListResponse"}}}
-          }
-        }
-      }
-    },
-    "/api/promotions/{promotion_id}": {
-      "get": {
-        "operationId": "getPromotion",
-        "summary": "Get promotion details with restaurant info and menu items",
-        "parameters": [
-          {"name": "promotion_id", "in": "path", "required": true, "schema": {"type": "integer"}}
-        ],
-        "responses": {
-          "200": {
-            "description": "Promotion details with restaurant and menu",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionDetail"}}}
-          },
-          "404": {
-            "description": "Promotion not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
-      }
-    },
-    "/api/search": {
-      "get": {
-        "operationId": "search",
-        "summary": "Search restaurants and menu items",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Search query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Search results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing query",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/promotions": {
-      "get": {
         "summary": "List promotions with restaurant enrichment (N+1 pattern)",
         "parameters": [
           {
@@ -1537,6 +1486,87 @@
           },
           "404": {
             "description": "Promotion not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Search restaurants and menu items",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/restaurants/{restaurant_id}/analytics": {
+      "get": {
+        "summary": "Get review analytics for a restaurant",
+        "description": "Returns rating distribution, average rating, and recent reviews enriched with order details",
+        "operationId": "getRestaurantAnalytics",
+        "tags": [
+          "restaurants"
+        ],
+        "parameters": [
+          {
+            "name": "restaurant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Review analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAnalytics"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Restaurant not found",
             "content": {
               "application/json": {
                 "schema": {
