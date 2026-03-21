@@ -6,18 +6,18 @@ Edges: RETURNS, ACCEPTS, HAS_PROPERTY, REFERENCES, REQUIRES_AUTH, HAS_PARAM.
 
 from __future__ import annotations
 
-import networkx as nx
+from .digraph import DiGraph
 
 
 class OpenAPIGraph:
     """Deterministic knowledge graph built from an OpenAPI spec."""
 
-    def __init__(self, graph: nx.DiGraph):
+    def __init__(self, graph: DiGraph):
         self.graph = graph
 
     @classmethod
     def from_spec(cls, spec: dict) -> OpenAPIGraph:
-        G = nx.DiGraph()
+        G = DiGraph()
         schemas = spec.get("components", {}).get("schemas", {})
         security_schemes = spec.get("components", {}).get("securitySchemes", {})
 
@@ -115,7 +115,7 @@ class OpenAPIGraph:
 
     @classmethod
     def from_dict(cls, data: dict) -> OpenAPIGraph:
-        G = nx.DiGraph()
+        G = DiGraph()
         for node in data["nodes"]:
             node_id = node.pop("id")
             G.add_node(node_id, **node)
@@ -124,7 +124,7 @@ class OpenAPIGraph:
         return cls(G)
 
 
-def _extract_refs_from_properties(G: nx.DiGraph, schema_name: str,
+def _extract_refs_from_properties(G: DiGraph, schema_name: str,
                                    properties: dict, all_schemas: dict) -> None:
     """Extract $ref edges from inline properties (e.g., inside allOf)."""
     for prop_name, prop_def in properties.items():
@@ -145,7 +145,7 @@ def _resolve_ref(schema: dict) -> str | None:
     return None
 
 
-def _add_properties(G: nx.DiGraph, schema_name: str, schema_def: dict,
+def _add_properties(G: DiGraph, schema_name: str, schema_def: dict,
                     all_schemas: dict) -> None:
     """Add property nodes and REFERENCES edges for a schema."""
     properties = schema_def.get("properties", {})
