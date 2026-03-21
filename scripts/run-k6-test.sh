@@ -47,9 +47,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ── Step 0b: Install GraphRAG dependency (NetworkX) ──
+# ── Step 0b: Resolve Python for GraphRAG (no external deps needed) ──
 GRAPHRAG_PYTHON=$(command -v python3.12 || command -v python3)
-$GRAPHRAG_PYTHON -m pip install --break-system-packages networkx --quiet 2>/dev/null || echo "WARNING: networkx install failed (GraphRAG will fall back to full spec)"
 
 # ── Step 1: Start the target application ──
 case "$APP_TYPE" in
