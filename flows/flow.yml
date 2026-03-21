@@ -38,10 +38,11 @@ definition:
           5. Check if k6/kassandra/mr-{IID}-*.js already exists (read_file). If it does, SKIP steps 6-8 and use the existing script.
           6. Generate k6 script per AGENTS.md rules (MUST include handleSummary exporting JSON to k6/kassandra/results/)
           7. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}.js
-          8. create_commit to MR source branch
+          7b. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}-graphrag.md (save GraphRAG output so it appears in the report)
+          8. create_commit to MR source branch (include BOTH files)
           9. run_command → EXACT command from AGENTS.md execution command section. Pass the source_branch as the 4th argument.
-          10. CRITICAL: The run_command output contains a report between "=== KASSANDRA REPORT START ===" and "=== KASSANDRA REPORT END ===" delimiters. Extract EVERYTHING between those delimiters.
-          11. create_merge_request_note → post the extracted report VERBATIM as the note body. Do NOT write your own report. Do NOT summarize. Copy-paste the exact text between the delimiters.
+          10. CRITICAL: The run_command output contains a report between "=== KASSANDRA REPORT START ===" and "=== KASSANDRA REPORT END ===" delimiters. Find those two lines and extract EVERYTHING between them.
+          11. create_merge_request_note → post the extracted report as the note body. This report contains Mermaid charts and formatted tables. Copy-paste it EXACTLY. Do NOT write your own report. Do NOT summarize. Do NOT rephrase. Do NOT add your own analysis. The generated report IS the final output.
           ## Rules
           - Only k6 built-in imports (k6/http, k6, k6/metrics, k6/execution, k6/encoding)
           - Only arrival-rate executors, never ramping-vus
