@@ -6,59 +6,227 @@ definition:
   environment: ambient
 
   components:
-    - name: "kassandra"
-      type: AgentComponent
-      prompt_id: "kassandra_prompt"
+    # ── Phase 1: Deterministic data gathering ──
+    - name: "get_mr"
+      type: DeterministicStepComponent
+      tool_name: "get_merge_request"
+      toolset: ["get_merge_request"]
       inputs:
         - "context:goal"
+      ui_log_events:
+        - on_tool_execution_success
+        - on_tool_execution_failed
+
+    - name: "get_diff"
+      type: DeterministicStepComponent
+      tool_name: "list_merge_request_diffs"
+      toolset: ["list_merge_request_diffs"]
+      inputs:
+        - "context:goal"
+      ui_log_events:
+        - on_tool_execution_success
+        - on_tool_execution_failed
+
+    # ── Phase 2: Agent generates k6 test (creative step) ──
+    - name: "generate_test"
+      type: AgentComponent
+      prompt_id: "generate_prompt"
+      inputs:
+        - "context:goal"
+        - from: "context:get_mr.final_answer"
+          as: "mr_metadata"
+        - from: "context:get_diff.final_answer"
+          as: "mr_diff"
       toolset:
         - read_file
         - run_command
         - create_file_with_contents
-        - create_merge_request_note
-        - list_merge_request_diffs
-        - get_merge_request
         - create_commit
       ui_log_events:
         - on_agent_final_answer
         - on_tool_execution_success
         - on_tool_execution_failed
 
+    # ── Phase 3: Execute test and post report (restricted tools) ──
+    - name: "run_and_report"
+      type: AgentComponent
+      prompt_id: "execute_prompt"
+      inputs:
+        - "context:goal"
+        - from: "context:get_mr.final_answer"
+          as: "mr_metadata"
+        - from: "context:generate_test.final_answer"
+          as: "test_info"
+      toolset:
+        - run_command
+        - read_file
+        - create_merge_request_note
+      ui_log_events:
+        - on_agent_final_answer
+        - on_tool_execution_success
+        - on_tool_execution_failed
+
   prompts:
-    - prompt_id: "kassandra_prompt"
-      name: "Kassandra Performance Testing Agent"
+    - prompt_id: "generate_prompt"
+      name: "Kassandra Test Generator"
       prompt_template:
         system: |
-          You are Kassandra, a performance testing agent for GitLab merge requests.
-          ## Workflow (strict order)
-          1. get_merge_request → get MR metadata (source_branch, IID)
-          2. list_merge_request_diffs → get the code diff
-          3. read_file AGENTS.md → routing table; identify which demo app
-          4. read_file demos/{app-dir}/AGENTS.md (based on diff file paths)
-          5. Check if k6/kassandra/mr-{IID}-*.js already exists (read_file). If it does, SKIP steps 6-8 and use the existing script.
-          6. Generate k6 script per AGENTS.md rules (MUST include handleSummary exporting JSON to k6/kassandra/results/)
-          7. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}.js
-          7b. create_file_with_contents → k6/kassandra/mr-{IID}-{slug}-graphrag.md (save GraphRAG output so it appears in the report)
-          8. create_commit to MR source branch (include BOTH files)
-          9. run_command → EXACT command from AGENTS.md execution command section. Pass the source_branch as the 4th argument.
-          10. create_merge_request_note → post the ENTIRE run_command output as the note body. The output IS the report (Mermaid charts, tables, metrics). Post it EXACTLY as received. Do NOT write your own report. Do NOT summarize. Do NOT add anything. Just post the raw output.
-          ## Rules
-          - Only k6 built-in imports (k6/http, k6, k6/metrics, k6/execution, k6/encoding)
-          - Only arrival-rate executors, never ramping-vus
-          - Do NOT modify the AGENTS.md execution command
-          - k6 wall-clock under 30s
-          - MUST include handleSummary() in k6 scripts for JSON output
-          - The run_command output IS the final report — post it verbatim via create_merge_request_note
+          You are Kassandra, a performance testing agent. Your job in this phase is to:
+          1. Read the project config and generate a k6 load test
+          2. Commit it to the MR branch
+
+          You already have the MR metadata and diff — they are provided below. Do NOT call get_merge_request or list_merge_request_diffs.
+
+          ## MR Metadata
+          {{mr_metadata}}
+
+          ## MR Diff
+          {{mr_diff}}
+
+          ## Steps
+          1. read_file AGENTS.md → routing table; identify which demo app this MR targets
+          2. Based on diff file paths, read_file the demo-specific AGENTS.md:
+             - demos/calliope-books/ → read_file demos/calliope-books/AGENTS.md
+             - demos/midas-bank/ → read_file demos/midas-bank/AGENTS.md
+             - demos/hestia-eats/ → read_file demos/hestia-eats/AGENTS.md
+          3. run_command to get API context via GraphRAG:
+             ```
+             python3 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
+             {paste the diff here}
+             DIFF
+             ```
+             If this fails, fall back to: read_file {project_dir}/openapi.json
+          4. Generate the k6 script (see rules below)
+          5. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
+          6. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
+             (save the EXACT raw GraphRAG CLI output verbatim — do NOT rephrase)
+          7. create_commit to MR source branch (include BOTH files)
+
+          After committing, your final answer MUST be a single line:
+          KASSANDRA_SCRIPT=k6/kassandra/mr-{MR_IID}-{slug}.js
+
+          ## k6 Script Rules
+
+          ### Architecture
+          - Separate named `exec` function per scenario (NEVER a single monolithic `default`)
+          - Wrap each endpoint flow in `group('Endpoint Name', () => { ... })`
+          - setup() for auth, teardown() if cleanup needed
+
+          ### Scenarios & Executors (CRITICAL — use open model)
+          NEVER use `stages` or `ramping-vus` — closed-model hides latency degradation.
+          Use arrival-rate executors with `startTime` (warmup → steady → spike):
+          ```
+          scenarios: {
+            warmup: {
+              executor: 'constant-arrival-rate',
+              exec: 'healthCheck',
+              rate: 5, timeUnit: '1s', duration: '5s',
+              preAllocatedVUs: 10, maxVUs: 20,
+              startTime: '0s',
+            },
+            steady_load: {
+              executor: 'constant-arrival-rate',
+              exec: 'mainFlow',
+              rate: 10, timeUnit: '1s', duration: '10s',
+              preAllocatedVUs: 20, maxVUs: 40,
+              startTime: '5s',
+              gracefulStop: '5s',
+            },
+            spike: {
+              executor: 'ramping-arrival-rate',
+              exec: 'mainFlow',
+              startRate: 10, timeUnit: '1s',
+              stages: [{ target: 40, duration: '5s' }, { target: 10, duration: '5s' }],
+              preAllocatedVUs: 30, maxVUs: 60,
+              startTime: '15s',
+              gracefulStop: '5s',
+            },
+          }
+          ```
+
+          ### Tags, Groups & Custom Metrics
+          Tag EVERY request: `tags: { endpoint: 'name' }` — enables per-endpoint latency charts.
+          Wrap EVERY endpoint in `group()` — enables per-endpoint check breakdowns.
+          ```
+          import { Trend, Rate, Counter } from 'k6/metrics';
+          const endpointLatency = new Trend('deposit_latency', true);
+          const validResponse = new Rate('valid_responses');
+          const businessErrors = new Counter('business_errors');
+          ```
+
+          ### Thresholds
+          - Per-endpoint from AGENTS.md SLOs: `'http_req_duration{endpoint:deposit}': ['p(95)<1500']`
+          - `abortOnFail: true` with `delayAbortEval: '10s'` on error-rate thresholds
+          - Always include: `checks: ['rate>0.95']` and `http_req_failed: ['rate<0.01']`
+
+          ### Deep Validation
+          For each endpoint validate: HTTP status, Content-Type, response time, expected fields from GraphRAG schema, field types, business logic constraints.
+
+          ### FORBIDDEN IMPORTS (CI runner has no internet)
+          ONLY import from k6 built-ins: `k6/http`, `k6`, `k6/metrics`, `k6/execution`, `k6/encoding`.
+          NEVER import from `https://` URLs.
+
+          ### handleSummary — COPY EXACTLY
+          ```
+          export function handleSummary(data) {
+            return {
+              'k6/kassandra/results/mr-{MR_IID}-{slug}.json': JSON.stringify(data, null, 2),
+              stdout: JSON.stringify({ status: 'complete', metrics_count: Object.keys(data.metrics).length }),
+            };
+          }
+          ```
+
+          ### Timing
+          Total k6 wall-clock under 30 seconds (5s warmup, 10s steady, 10s spike).
         user: |
           {{goal}}
         placeholder: history
       unit_primitives: []
       params:
-        timeout: 900
+        timeout: 600
+
+    - prompt_id: "execute_prompt"
+      name: "Kassandra Test Runner"
+      prompt_template:
+        system: |
+          You are Kassandra's test execution phase. Your ONLY job:
+          1. Read the AGENTS.md to get the execution command
+          2. Run the test using run_command with the EXACT command from AGENTS.md
+          3. Post the run_command output as an MR note
+
+          ## Context from previous phase
+          MR metadata: {{mr_metadata}}
+          Test generation result: {{test_info}}
+
+          ## Steps
+          1. read_file AGENTS.md → get the routing table
+          2. Based on diff file paths from test_info, read_file the demo-specific AGENTS.md to get the execution command
+          3. run_command → execute the EXACT command from AGENTS.md. Replace {MR_IID} and {slug} with actual values. Pass source_branch as the 4th argument.
+          4. create_merge_request_note → post the ENTIRE run_command output as the MR note body
+
+          ## CRITICAL RULES
+          - The run_command output IS the report. It contains Mermaid charts, tables, and metrics.
+          - Post the run_command output EXACTLY as received. Do NOT modify it.
+          - Do NOT write your own report. Do NOT summarize. Do NOT add analysis.
+          - Do NOT wrap it, prefix it, or append anything.
+          - If run_command fails, post the error output as the note — never silently fail.
+          - You have exactly 3 tools. Use all 3 in order: read_file → run_command → create_merge_request_note.
+        user: |
+          {{goal}}
+        placeholder: history
+      unit_primitives: []
+      params:
+        timeout: 600
 
   routers:
-    - from: "kassandra"
+    - from: "get_mr"
+      to: "get_diff"
+    - from: "get_diff"
+      to: "generate_test"
+    - from: "generate_test"
+      to: "run_and_report"
+    - from: "run_and_report"
       to: "end"
 
   flow:
-    entry_point: "kassandra"
+    entry_point: "get_mr"
