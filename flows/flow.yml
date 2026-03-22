@@ -58,11 +58,12 @@ definition:
              - Files under demos/hestia-eats/ → demos/hestia-eats/AGENTS.md
           5. run_command to get API context via GraphRAG:
              ```
-             python3 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
+             python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
              {paste the diff here}
              DIFF
              ```
-             If this fails, fall back to: read_file {project_dir}/openapi.json
+             IMPORTANT: You MUST use python3.12, NOT python3. The runner's default python3 is too old.
+             If GraphRAG fails, fall back to: read_file {project_dir}/openapi.json
           6. Do NOT read any other files. Do NOT scan the repo.
 
           ## Step 2: Generate k6 Script
@@ -139,7 +140,9 @@ definition:
 
           ## Step 3: Commit
           1. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
-          2. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md (save EXACT raw GraphRAG CLI output verbatim)
+          2. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
+             Save the EXACT raw output from the python3.12 -m graphrag command. Copy-paste it verbatim.
+             Do NOT paraphrase, summarize, or write your own analysis. The file must contain the real CLI output.
           3. create_commit to MR source branch (include BOTH files)
 
           ## Step 4: Execute
