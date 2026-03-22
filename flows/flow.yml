@@ -6,38 +6,15 @@ definition:
   environment: ambient
 
   components:
-    # ── Phase 1: Deterministic data gathering ──
-    - name: "get_mr"
-      type: DeterministicStepComponent
-      tool_name: "get_merge_request"
-      toolset: ["get_merge_request"]
-      inputs:
-        - "context:goal"
-      ui_log_events:
-        - on_tool_execution_success
-        - on_tool_execution_failed
-
-    - name: "get_diff"
-      type: DeterministicStepComponent
-      tool_name: "list_merge_request_diffs"
-      toolset: ["list_merge_request_diffs"]
-      inputs:
-        - "context:goal"
-      ui_log_events:
-        - on_tool_execution_success
-        - on_tool_execution_failed
-
-    # ── Phase 2: Agent generates k6 test (creative step) ──
+    # ── Phase 1: Read context, generate k6 test, commit ──
     - name: "generate_test"
       type: AgentComponent
       prompt_id: "generate_prompt"
       inputs:
         - "context:goal"
-        - from: "context:get_mr.final_answer"
-          as: "mr_metadata"
-        - from: "context:get_diff.final_answer"
-          as: "mr_diff"
       toolset:
+        - get_merge_request
+        - list_merge_request_diffs
         - read_file
         - run_command
         - create_file_with_contents
@@ -47,14 +24,12 @@ definition:
         - on_tool_execution_success
         - on_tool_execution_failed
 
-    # ── Phase 3: Execute test and post report (restricted tools) ──
+    # ── Phase 2: Execute test and post report (restricted tools) ──
     - name: "run_and_report"
       type: AgentComponent
       prompt_id: "execute_prompt"
       inputs:
         - "context:goal"
-        - from: "context:get_mr.final_answer"
-          as: "mr_metadata"
         - from: "context:generate_test.final_answer"
           as: "test_info"
       toolset:
@@ -72,38 +47,33 @@ definition:
       prompt_template:
         system: |
           You are Kassandra, a performance testing agent. Your job in this phase is to:
-          1. Read the project config and generate a k6 load test
-          2. Commit it to the MR branch
-
-          You already have the MR metadata and diff — they are provided below. Do NOT call get_merge_request or list_merge_request_diffs.
-
-          ## MR Metadata
-          {{mr_metadata}}
-
-          ## MR Diff
-          {{mr_diff}}
+          1. Read the MR diff and project config
+          2. Generate a k6 load test
+          3. Commit it to the MR branch
 
           ## Steps
-          1. read_file AGENTS.md → routing table; identify which demo app this MR targets
-          2. Based on diff file paths, read_file the demo-specific AGENTS.md:
+          1. get_merge_request → get MR metadata (source_branch, IID)
+          2. list_merge_request_diffs → get the code diff
+          3. read_file AGENTS.md → routing table; identify which demo app this MR targets
+          4. Based on diff file paths, read_file the demo-specific AGENTS.md:
              - demos/calliope-books/ → read_file demos/calliope-books/AGENTS.md
              - demos/midas-bank/ → read_file demos/midas-bank/AGENTS.md
              - demos/hestia-eats/ → read_file demos/hestia-eats/AGENTS.md
-          3. run_command to get API context via GraphRAG:
+          5. run_command to get API context via GraphRAG:
              ```
              python3 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
              {paste the diff here}
              DIFF
              ```
              If this fails, fall back to: read_file {project_dir}/openapi.json
-          4. Generate the k6 script (see rules below)
-          5. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
-          6. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
+          6. Generate the k6 script (see rules below)
+          7. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
+          8. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
              (save the EXACT raw GraphRAG CLI output verbatim — do NOT rephrase)
-          7. create_commit to MR source branch (include BOTH files)
+          9. create_commit to MR source branch (include BOTH files)
 
-          After committing, your final answer MUST be a single line:
-          KASSANDRA_SCRIPT=k6/kassandra/mr-{MR_IID}-{slug}.js
+          After committing, your final answer MUST be a single line with the info the next phase needs:
+          KASSANDRA_TEST source_branch={branch} app={calliope|midas|hestia} script=k6/kassandra/mr-{MR_IID}-{slug}.js
 
           ## k6 Script Rules
 
@@ -178,6 +148,12 @@ definition:
 
           ### Timing
           Total k6 wall-clock under 30 seconds (5s warmup, 10s steady, 10s spike).
+
+          ## CRITICAL RULES
+          - Do NOT read files beyond AGENTS.md and openapi.json
+          - NEVER import from URLs — only k6 built-ins
+          - NEVER use ramping-vus
+          - COPY handleSummary EXACTLY as shown
         user: |
           {{goal}}
         placeholder: history
@@ -195,13 +171,12 @@ definition:
           3. Post the run_command output as an MR note
 
           ## Context from previous phase
-          MR metadata: {{mr_metadata}}
-          Test generation result: {{test_info}}
+          {{test_info}}
 
           ## Steps
           1. read_file AGENTS.md → get the routing table
-          2. Based on diff file paths from test_info, read_file the demo-specific AGENTS.md to get the execution command
-          3. run_command → execute the EXACT command from AGENTS.md. Replace {MR_IID} and {slug} with actual values. Pass source_branch as the 4th argument.
+          2. Based on the app type from test_info, read_file the demo-specific AGENTS.md to get the execution command
+          3. run_command → execute the EXACT command from AGENTS.md. Replace {MR_IID} and {slug} with actual values from test_info. Pass source_branch as the 4th argument.
           4. create_merge_request_note → post the ENTIRE run_command output as the MR note body
 
           ## CRITICAL RULES
@@ -219,14 +194,10 @@ definition:
         timeout: 600
 
   routers:
-    - from: "get_mr"
-      to: "get_diff"
-    - from: "get_diff"
-      to: "generate_test"
     - from: "generate_test"
       to: "run_and_report"
     - from: "run_and_report"
       to: "end"
 
   flow:
-    entry_point: "get_mr"
+    entry_point: "generate_test"
