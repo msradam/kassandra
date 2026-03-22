@@ -40,9 +40,9 @@ definition:
           2. "Get MR diff" — list_merge_request_diffs
           3. "Read routing config" — read_file AGENTS.md
           4. "Read app-specific config" — read_file demos/{app}/AGENTS.md
-          5. "Run GraphRAG" — run_command for API schema context
+          5. "Read API spec" — read_file {project_dir}/openapi.json
           6. "Generate k6 script" — write the test script
-          7. "Commit test files" — create_file_with_contents + create_commit
+          7. "Commit test file" — create_file_with_contents + create_commit
           8. "Execute test" — run_command with AGENTS.md command
           9. "Post report" — create_merge_request_note with run_command output
 
@@ -56,14 +56,9 @@ definition:
              - Files under demos/calliope-books/ → demos/calliope-books/AGENTS.md
              - Files under demos/midas-bank/ → demos/midas-bank/AGENTS.md
              - Files under demos/hestia-eats/ → demos/hestia-eats/AGENTS.md
-          5. run_command to get API context via GraphRAG:
-             ```
-             python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
-             {paste the diff here}
-             DIFF
-             ```
-             If this fails, fall back to: read_file {project_dir}/openapi.json
+          5. read_file {project_dir}/openapi.json → get the API spec for test generation
           6. Do NOT read any other files. Do NOT scan the repo.
+             GraphRAG context retrieval happens automatically during test execution — do NOT run it manually.
 
           ## Step 2: Generate k6 Script
 
@@ -139,8 +134,7 @@ definition:
 
           ## Step 3: Commit
           1. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
-          2. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md (save EXACT raw GraphRAG CLI output verbatim)
-          3. create_commit to MR source branch (include BOTH files)
+          2. create_commit to MR source branch
 
           ## Step 4: Execute
           Use the EXACT command from AGENTS.md. Do NOT modify it. Do NOT build your own command.
