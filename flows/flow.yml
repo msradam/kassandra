@@ -58,12 +58,12 @@ definition:
              - Files under demos/hestia-eats/ → demos/hestia-eats/AGENTS.md
           5. run_command to get API context via GraphRAG:
              ```
-             python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
+             bash scripts/run-graphrag.sh --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
              {paste the diff here}
              DIFF
              ```
-             IMPORTANT: You MUST use python3.12, NOT python3. The runner's default python3 is too old.
-             If GraphRAG fails, fall back to: read_file {project_dir}/openapi.json
+             The output MUST start with "## GraphRAG Traversal" and contain "Matched endpoints:".
+             If it does NOT contain those markers, the command failed — fall back to: read_file {project_dir}/openapi.json
           6. Do NOT read any other files. Do NOT scan the repo.
 
           ## Step 2: Generate k6 Script
