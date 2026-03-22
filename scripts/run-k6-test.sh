@@ -122,6 +122,9 @@ RISK_REPORT=""
 RISK_PYTHON=$(command -v python3.12 || command -v python3)
 mkdir -p k6/kassandra/results
 
+# Ensure origin/main is available for diff comparison
+git fetch origin main 2>/dev/null || true
+
 # Auto-detect diff: try explicit branch, then current HEAD vs origin/main
 # Filter to app code only (demos/ directory), exclude generated k6 test scripts
 DIFF_TEXT=""
@@ -152,6 +155,8 @@ fi
 GRAPHRAG_REPORT=""
 if [ -n "$DIFF_TEXT" ]; then
   echo "Running GraphRAG context retrieval..."
+  echo "  Python: $GRAPHRAG_PYTHON ($(command -v $GRAPHRAG_PYTHON || echo 'NOT FOUND'))"
+  echo "  graphrag module check: $($GRAPHRAG_PYTHON -c 'import graphrag; print("OK")' 2>&1)"
   if [ -n "$DIFF_TEXT" ]; then
     # Resolve app directory from app type
     case "$APP_TYPE" in
