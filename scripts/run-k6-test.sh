@@ -148,18 +148,9 @@ else
 fi
 
 # ── Step 3b: GraphRAG context retrieval ──
+# Always run fresh — agent-committed files use wrong spec (main branch, not MR branch)
 GRAPHRAG_REPORT=""
-# Check for pre-computed GraphRAG file first (committed alongside k6 script)
-# Validate it contains the real CLI output header — agents sometimes hallucinate this file
-PRECOMPUTED_GRAPHRAG="k6/kassandra/${REPORT_NAME}-graphrag.md"
-# Validate pre-computed file: must have real CLI output (header + matched endpoints > 0)
-# Agents hallucinate this file — check for the exact BFS output pattern with non-zero results
-if [ -f "$PRECOMPUTED_GRAPHRAG" ] && [ -s "$PRECOMPUTED_GRAPHRAG" ] \
-    && grep -q "## GraphRAG Traversal" "$PRECOMPUTED_GRAPHRAG" \
-    && grep -qE "Matched endpoints: [1-9]" "$PRECOMPUTED_GRAPHRAG"; then
-  GRAPHRAG_REPORT="$PRECOMPUTED_GRAPHRAG"
-  echo "Using pre-computed GraphRAG: $PRECOMPUTED_GRAPHRAG ($(wc -l < "$PRECOMPUTED_GRAPHRAG") lines)"
-elif [ -n "$DIFF_TEXT" ]; then
+if [ -n "$DIFF_TEXT" ]; then
   echo "Running GraphRAG context retrieval..."
   if [ -n "$DIFF_TEXT" ]; then
     # Resolve app directory from app type
