@@ -56,11 +56,9 @@ definition:
              - Files under demos/calliope-books/ → demos/calliope-books/AGENTS.md
              - Files under demos/midas-bank/ → demos/midas-bank/AGENTS.md
              - Files under demos/hestia-eats/ → demos/hestia-eats/AGENTS.md
-          5. run_command to get API context via GraphRAG:
+          5. run_command to get API context via GraphRAG (use python3.12, NOT python3):
              ```
-             bash scripts/run-graphrag.sh --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
-             {paste the diff here}
-             DIFF
+             echo '{paste the diff here}' | python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin
              ```
              The output MUST start with "## GraphRAG Traversal" and contain "Matched endpoints:".
              If it does NOT contain those markers, the command failed — fall back to: read_file {project_dir}/openapi.json
