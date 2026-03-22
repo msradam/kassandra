@@ -56,12 +56,13 @@ definition:
              - Files under demos/calliope-books/ → demos/calliope-books/AGENTS.md
              - Files under demos/midas-bank/ → demos/midas-bank/AGENTS.md
              - Files under demos/hestia-eats/ → demos/hestia-eats/AGENTS.md
-          5. run_command to get API context via GraphRAG (use python3.12, NOT python3):
+          5. run_command to get API context via GraphRAG:
              ```
-             echo '{paste the diff here}' | python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin
+             python3.12 -m graphrag --spec {project_dir}/openapi.json --diff-stdin <<'DIFF'
+             {paste the diff here}
+             DIFF
              ```
-             The output MUST start with "## GraphRAG Traversal" and contain "Matched endpoints:".
-             If it does NOT contain those markers, the command failed — fall back to: read_file {project_dir}/openapi.json
+             If this fails, fall back to: read_file {project_dir}/openapi.json
           6. Do NOT read any other files. Do NOT scan the repo.
 
           ## Step 2: Generate k6 Script
@@ -138,9 +139,7 @@ definition:
 
           ## Step 3: Commit
           1. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}.js
-          2. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md
-             Save the EXACT raw output from the python3.12 -m graphrag command. Copy-paste it verbatim.
-             Do NOT paraphrase, summarize, or write your own analysis. The file must contain the real CLI output.
+          2. create_file_with_contents → k6/kassandra/mr-{MR_IID}-{slug}-graphrag.md (save EXACT raw GraphRAG CLI output verbatim)
           3. create_commit to MR source branch (include BOTH files)
 
           ## Step 4: Execute
