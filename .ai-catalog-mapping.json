@@ -35,10 +35,10 @@
         }
       },
       "latest_sync": {
-        "git_tag": "v0.71.0",
-        "catalog_version": "1.26.0",
-        "synced_at": "2026-03-22T00:23:35.716Z",
-        "definition_hash": "3087b5218216a930"
+        "git_tag": "v0.72.0",
+        "catalog_version": "1.27.0",
+        "synced_at": "2026-03-22T00:42:15.088Z",
+        "definition_hash": "6ccbf074cec4371c"
       }
     }
   }
