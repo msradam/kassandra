@@ -20,7 +20,7 @@ Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io
 
 I've been thinking about performance testing for a while. Last year I [ported Grafana k6 to IBM z/OS mainframes](https://medium.com/theropod/go-ing-native-porting-grafana-k6-to-z-os-with-go-f7f73267c1c), compiling it natively so it could run 24/7 as both the control and managed node on the same machine. That project convinced me k6 is the right engine for load testing: [23k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable, compiled Go binary you can drop anywhere. The problem is what comes before k6 runs. Someone still has to write and maintain the scripts. Most teams don't. The result: latency regressions ship to production. And some bugs only appear under load. A SQLite endpoint that passes every unit test can fail 60% of requests when concurrent users hit it, because thread-safety constraints only surface under real concurrency. Manual API exploration and unit tests can't catch that. Load testing can.
 
-The business case for catching regressions early is well-established. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Google found that an extra [500ms in search page generation dropped traffic by 20%](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs Global 2000 companies [$400 billion annually](https://www.splunk.com/en_us/form/the-hidden-costs-of-downtime.html). The cost of catching regressions late is measurable.
+The business case for catching regressions early is well-established. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs Global 2000 companies [$400 billion annually](https://www.splunk.com/en_us/form/the-hidden-costs-of-downtime.html). The cost of catching regressions late is measurable.
 
 k6 already supports [shift-left testing](https://grafana.com/docs/k6/latest/testing-guides/test-types/) in CI/CD pipelines. Kassandra takes that to its logical extreme: an AI agent writes the test from the merge request diff. To my knowledge, no existing tool does this. [Schemathesis](https://schemathesis.io/) does schema-based fuzzing. [Dredd](https://dredd.org/) does contract validation. k6 Cloud handles execution. None of them read a diff, generate a targeted load test, run it, and post the results back to the MR.
 
@@ -74,6 +74,28 @@ Kassandra's k6 scripts run unsupervised against a live server. A wrong field nam
 
 The result: ~95% fewer input tokens and zero hallucinated endpoints across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. See [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) for the full technical deep dive.
 
+Sample output for a single endpoint:
+
+```
+$ echo '+@app.post("/api/transactions/transfer")' | python -m graphrag --spec openapi.json --diff-stdin
+
+Graph: 104 nodes, 107 edges
+Matched endpoints: 1
+
+  ● POST /api/transactions/transfer
+    ├─ ACCEPTS → TransferRequest (schema)
+    │  ├─ .from_account_id: integer
+    │  ├─ .to_account_id: integer
+    │  ├─ .amount: number
+    ├─ RETURNS → TransactionOut (schema)
+    │  ├─ .id: integer
+    │  ├─ .amount: number
+    │  ├─ .type: string
+    ├─ HAS_PARAM → authorization (header)
+
+Retrieved: 4 schemas, 1 params, auth=yes
+```
+
 ### Key design decisions
 
 **Open-model executors only.** [Closed-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) reduce load when the server slows down, hiding the regressions you're testing for. Kassandra exclusively generates open-model executors that maintain consistent throughput.
@@ -112,11 +134,10 @@ All use embedded databases or in-memory stores. Zero external dependencies. Each
 
 ## What I learned
 
-- **Restructured context beats trimmed context.** With the full OpenAPI spec, the model generated tests for endpoints that weren't changed. The flat JSON with `$ref` string pointers made it ambiguous which schemas belonged to which endpoints, so the model tested things it shouldn't have. GraphRAG changed two things at once: the volume (95% fewer tokens) and the representation (implicit `$ref` pointers resolved into an explicit tree where every field is pre-associated with its endpoint). Remove the ambiguity, and the model stays on target.
-- **Don't let the LLM generate structured syntax.** Mermaid, YAML, k6 thresholds. I tried. 80% reliability means 20% broken charts. Deterministic generation from structured data works every time.
-- **Open-model executors are non-negotiable.** [Closed-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) reduce load when the server slows down, hiding the regressions you're testing for.
-- **Lean on battle-tested tools.** k6 handles the hard parts. The agent's job is to generate the right script and interpret the results, not reinvent the engine.
-- **Know where the LLM adds value and where it doesn't.** The LLM is good at reading a diff, understanding endpoint semantics, and generating a k6 script with the right request bodies and validation checks. It's bad at producing consistent Mermaid syntax and reliable threshold arithmetic. Kassandra splits the work: the LLM generates and reasons, deterministic Python handles charting and reporting, k6 handles load execution. Each tool does what it's good at.
+- **Restructured context beats trimmed context.** I expected that reducing token count would be enough. It wasn't. The model hallucinated endpoints from the full spec even when the prompt said "only test changed endpoints." The fix wasn't fewer tokens; it was changing the representation so the ambiguity was gone before the model saw it.
+- **Don't let the LLM generate structured syntax.** Mermaid, YAML, k6 thresholds. 80% reliability means 20% broken charts. I wasted time prompt-engineering around this before accepting that deterministic generation from structured data is the only reliable path.
+- **Lean on battle-tested tools.** The agent's job is to generate the right script and interpret the results, not reinvent the load testing engine. k6 handles the hard parts.
+- **Split LLM and deterministic work explicitly.** The LLM reads diffs and generates k6 scripts. Python charts. k6 executes. Every time I let the LLM cross into deterministic territory (Mermaid syntax, threshold arithmetic), reliability dropped.
 
 For the full technical deep dive, see [README.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/README.md) and [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) in the repo.
 

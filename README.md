@@ -104,17 +104,21 @@ All use embedded databases or in-memory stores. Zero external dependencies. Each
   ▼
 Duo Workflow Agent (agent.yml + flow.yml)
   │
-  ├── read_file ─── MR diff + AGENTS.md routing
+  ├── get_merge_request ─────────── MR metadata (branch, IID)
   │
-  ├── run_command ── GraphRAG: openapi.json → DiGraph → BFS → relevant schemas
+  ├── list_merge_request_diffs ──── code diff
   │
-  ├── create_file ── k6 script (open-model executors, SLO thresholds, validation)
+  ├── read_file ─────────────────── AGENTS.md routing
   │
-  ├── create_commit ── test committed to MR branch
+  ├── run_command ───────────────── GraphRAG: openapi.json → DiGraph → BFS → relevant schemas
   │
-  ├── run_command ── run-k6-test.sh (app startup → k6 → report → cleanup)
+  ├── create_file_with_contents ─── k6 script (open-model executors, SLO thresholds, validation)
   │
-  └── create_merge_request_note ── Mermaid report + agent analysis
+  ├── create_commit ─────────────── test committed to MR branch
+  │
+  ├── run_command ───────────────── run-k6-test.sh (app startup → k6 → report → cleanup)
+  │
+  └── create_merge_request_note ─── Mermaid report posted to MR
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for design decisions and technical details.
