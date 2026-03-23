@@ -18,7 +18,7 @@ Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io
 
 ## Inspiration
 
-I've been thinking about performance testing for a while. Last year I [ported Grafana k6 to IBM z/OS mainframes](https://medium.com/theropod/go-ing-native-porting-grafana-k6-to-z-os-with-go-f7f73267c1c), compiling it natively so it could run 24/7 as both the control and managed node on the same machine. That project convinced me k6 is the right engine for load testing: [23k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable, compiled Go binary you can drop anywhere. The problem is what comes before k6 runs. Someone still has to write and maintain the scripts. Most teams don't. The result: latency regressions ship to production. And some bugs only appear under load. A SQLite endpoint that passes every unit test can fail 60% of requests when concurrent users hit it, because thread-safety constraints only surface under real concurrency. Manual API exploration and unit tests can't catch that. Load testing can.
+I've been thinking about performance testing for a while. Last year I [ported Grafana k6 to IBM z/OS mainframes](https://medium.com/theropod/go-ing-native-porting-grafana-k6-to-z-os-with-go-f7f73267c1c), compiling it natively so it could run 24/7 as both the control and managed node on the same machine. That project convinced me k6 is the right engine for load testing: [30k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable, compiled Go binary you can drop anywhere. The problem is what comes before k6 runs. Someone still has to write and maintain the scripts. Most teams don't. The result: latency regressions ship to production. And some bugs only appear under load. A SQLite endpoint that passes every unit test can fail 60% of requests when concurrent users hit it, because thread-safety constraints only surface under real concurrency. Manual API exploration and unit tests can't catch that. Load testing can.
 
 The business case for catching regressions early is well-established. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs Global 2000 companies [$400 billion annually](https://www.splunk.com/en_us/form/the-hidden-costs-of-downtime.html). The cost of catching regressions late is measurable.
 
@@ -114,14 +114,14 @@ Three sample applications built for this hackathon, each with intentional perfor
 | App | Stack | Endpoints |
 |-----|-------|-----------|
 | Midas Bank | Python / [FastAPI](https://fastapi.tiangolo.com/) / SQLite | 11 |
-| Calliope Books | JavaScript / [Express](https://expressjs.com/) / [sql.js](https://sql.js.org/) | 18 |
+| Calliope Books | JavaScript / [Express](https://expressjs.com/) / [sql.js](https://sql.js.org/) | 17 |
 | Hestia Eats | TypeScript / [Hono](https://hono.dev/) / in-memory | 19 |
 
 All use embedded databases or in-memory stores. Zero external dependencies. Each has an [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config and an `openapi.json` spec. Same agent, three stacks, zero code changes. Only the per-project config differs. The polyglot setup is deliberate: it demonstrates that Kassandra generalizes across entirely different stacks, not endpoints within a single app.
 
 ## Challenges I ran into
 
-**Duo Workflow context limits.** Long prompts cause the agent to enter tool-routing loops. The flow prompt needs to stay under ~25 lines. Above ~60 lines, the agent loops. GraphRAG keeps the spec context minimal, and k6 generation rules live in [`agent.yml`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/agents/agent.yml) rather than the flow.
+**Duo Workflow context limits.** Long prompts cause the agent to enter tool-routing loops. Early iterations with verbose prompts looped indefinitely. The fix was structuring the prompt as a strict numbered checklist with inline k6 generation rules, and keeping dynamic context (the OpenAPI spec) minimal via GraphRAG.
 
 **Process lifecycle on the runner.** `run_command` blocks until exit, so starting the app and k6 in separate calls leaves the server hung. A single shell script with a [trap handler](https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html#index-trap) solved it.
 

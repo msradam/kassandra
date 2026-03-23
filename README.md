@@ -1,6 +1,6 @@
 # Kassandra
 
-Performance testing agent for GitLab merge requests. Mention it on an MR. It reads the diff, generates a [Grafana k6](https://k6.io) load test, executes it, and posts a Mermaid-charted performance report as an MR comment. No test authoring. No CI configuration. One config file per project.
+Performance testing agent for GitLab merge requests. Mention it on an MR. It reads the diff, generates a [Grafana k6](https://k6.io/) load test, executes it, and posts a Mermaid-charted performance report as an MR comment. No test authoring. No CI configuration. One config file per project.
 
 Built on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/development/duo_workflow/) for the [GitLab AI Hackathon 2026](https://gitlab-ai-hackathon.devpost.com/).
 
@@ -8,7 +8,7 @@ Built on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/developme
 
 ## The problem
 
-Performance testing doesn't scale with development velocity. [Grafana k6](https://k6.io/) is best-in-class for load testing ([23k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable), but writing and maintaining test scripts compounds the gap. Teams ship endpoints faster than they can test them. Kassandra is a proof of concept for closing this loop with an AI agent.
+Performance testing doesn't scale with development velocity. [Grafana k6](https://k6.io/) is best-in-class for load testing ([30k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable), but writing and maintaining test scripts compounds the gap. Teams ship endpoints faster than they can test them. Kassandra is a proof of concept for closing this loop with an AI agent.
 
 The result: latency regressions ship to production. An N+1 query that adds 200ms per request under load goes unnoticed until customers complain. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs Global 2000 companies [$400 billion annually](https://www.splunk.com/en_us/form/the-hidden-costs-of-downtime.html).
 
@@ -38,7 +38,7 @@ When an MR changes an endpoint, [BFS traversal](https://en.wikipedia.org/wiki/Br
 | Spec | Nodes | Edges | Token reduction |
 |------|-------|-------|-----------------|
 | Midas Bank | 104 | 107 | **94.6%** (6,403 → 347) |
-| Calliope Books | 107 | 106 | **95.3%** (6,407 → 303) |
+| Calliope Books | 88 | 88 | **95.3%** (6,407 → 303) |
 | Hestia Eats | 164 | 180 | **95.0%** (8,967 → 450) |
 
 Identical schema field coverage. Zero hallucinated endpoints across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). 57 unit tests, ~0.1s runtime.
@@ -91,7 +91,7 @@ Three sample applications built for this hackathon, each with intentional perfor
 | App | Stack | Port | Endpoints | Intentional patterns |
 |-----|-------|------|-----------|---------------------|
 | Midas Bank | Python / FastAPI / SQLite | 8000 | 11 | Aggregation queries, rate limiting, deposit caps |
-| Calliope Books | JavaScript / Express / sql.js | 3000 | 18 | N+1 queries, unoptimized LIKE, route ordering bugs |
+| Calliope Books | JavaScript / Express / sql.js | 3000 | 17 | N+1 queries, unoptimized LIKE, route ordering bugs |
 | Hestia Eats | TypeScript / Hono / in-memory | 8080 | 19 | N+1 restaurant enrichment, iterative lookups |
 
 All use embedded databases or in-memory stores. Zero external dependencies. Each includes an `AGENTS.md` with project-specific SLOs and auth config, and an `openapi.json` spec.
