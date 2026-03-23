@@ -66,7 +66,7 @@ Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participa
 
 ## How I built it
 
-**Platform:** [GitLab Duo Workflow](https://docs.gitlab.com/ee/development/duo_workflow/) with `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The Duo Workflow sandbox runs [Anthropic models by default](https://docs.gitlab.com/ee/development/duo_workflow/).
+**Platform:** [GitLab Duo Workflow](https://docs.gitlab.com/ee/development/duo_workflow/) with `get_merge_request`, `list_merge_request_diffs`, `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The Duo Workflow sandbox runs [Anthropic models by default](https://docs.gitlab.com/ee/development/duo_workflow/).
 
 ### OpenAPI GraphRAG
 
@@ -77,7 +77,7 @@ The result: ~95% fewer input tokens and zero hallucinated endpoints across all [
 Sample output for a single endpoint:
 
 ```
-$ echo '+@app.post("/api/transactions/transfer")' | python -m graphrag --spec openapi.json --diff-stdin
+$ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --spec demos/midas-bank/openapi.json --diff-stdin
 
 Graph: 104 nodes, 107 edges
 Matched endpoints: 1
@@ -87,10 +87,13 @@ Matched endpoints: 1
     │  ├─ .from_account_id: integer
     │  ├─ .to_account_id: integer
     │  ├─ .amount: number
+    │  ├─ .description: string
     ├─ RETURNS → TransactionOut (schema)
     │  ├─ .id: integer
     │  ├─ .amount: number
     │  ├─ .type: string
+    │  ├─ .description: string|null
+    │  ├─ .created_at: string|null
     ├─ HAS_PARAM → authorization (header)
 
 Retrieved: 4 schemas, 1 params, auth=yes
@@ -100,7 +103,7 @@ Retrieved: 4 schemas, 1 params, auth=yes
 
 **Open-model executors only.** [Closed-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) reduce load when the server slows down, hiding the regressions you're testing for. Kassandra exclusively generates open-model executors that maintain consistent throughput.
 
-**Deterministic reporting.** The LLM produced broken [Mermaid](https://mermaid.js.org/) charts 20% of the time. Report generation is now a [deterministic Python script](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py): k6 JSON to Markdown with color-themed bar and pie charts. The shell script outputs the report, and the agent posts it verbatim with its own analysis appended. The LLM reasons. Python charts. k6 executes.
+**Deterministic reporting.** The LLM produced broken [Mermaid](https://mermaid.js.org/) charts 20% of the time. Report generation is now a [deterministic Python script](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py): k6 JSON to Markdown with color-themed bar and pie charts. The shell script outputs the report, and the agent posts it as the MR note. The LLM reasons. Python charts. k6 executes.
 
 **Single-invocation execution.** Duo Workflow's `run_command` blocks until exit. [`run-k6-test.sh`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/run-k6-test.sh) handles the full lifecycle in one process: app startup, health check, risk analysis, GraphRAG, k6, report generation, cleanup.
 
