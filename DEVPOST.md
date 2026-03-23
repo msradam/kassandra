@@ -14,7 +14,7 @@ Performance prophecy for every merge request.
 
 ---
 ## Summary
-Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io/) performance tests from GitLab merge request diffs. Mention it on an MR. It reads the diff, retrieves relevant API schemas via OpenAPI GraphRAG, generates a load test, runs it, and posts a performance report with Mermaid charts and regression detection. No tests to write. No pipelines to configure. One config file per project.
+Kassandra is a Duo Workflow agent that doesn't just analyze code for performance issues — it generates [Grafana k6](https://k6.io/) load tests from GitLab merge request diffs, executes them against the live application, and reports actual runtime results. Mention it on an MR. It reads the diff, retrieves relevant API schemas via OpenAPI GraphRAG, generates a load test, starts the app, runs k6, and posts a performance report with real latency numbers, Mermaid charts, and regression detection. No tests to write. No pipelines to configure. One config file per project.
 
 ## Inspiration
 
