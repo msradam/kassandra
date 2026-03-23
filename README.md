@@ -10,7 +10,7 @@ Built on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/developme
 
 Performance testing doesn't scale with development velocity. [Grafana k6](https://k6.io/) is best-in-class for load testing ([23k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable), but writing and maintaining test scripts compounds the gap. Teams ship endpoints faster than they can test them. Kassandra is a proof of concept for closing this loop with an AI agent.
 
-The result: latency regressions ship to production. An N+1 query that adds 200ms per request under load goes unnoticed until customers complain. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs the top 2,000 companies [$400 billion per year](https://www.cockroachlabs.com/blog/the-state-of-resilience-2025-reveals-the-true-cost-of-downtime/).
+The result: latency regressions ship to production. An N+1 query that adds 200ms per request under load goes unnoticed until customers complain. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Downtime costs Global 2000 companies [$400 billion annually](https://www.splunk.com/en_us/form/the-hidden-costs-of-downtime.html).
 
 To my knowledge, no existing tool auto-generates k6 performance tests from merge request diffs. [Schemathesis](https://schemathesis.io/) does schema fuzzing. [Dredd](https://dredd.org/) does contract validation. k6 Cloud handles execution. None of them close the loop from code change to performance verdict.
 
