@@ -79,6 +79,7 @@ POST /api/transactions/transfer          (depth 0: endpoint)
   │     └── .type: string               (depth 2: property)
   └── HAS_PARAM → authorization          (depth 1: parameter)
 ```
+(Simplified; full output includes all schema properties and validation error types. See README for complete CLI output.)
 
 Depth 2 was chosen empirically. Depth 1 misses property-level detail (the LLM can't validate response fields without knowing their types). Depth 3 pulls in too many transitive schemas and re-introduces the noise problem.
 
@@ -192,7 +193,7 @@ The agent reads the diff, identifies which files changed, and loads the matching
 
 ## Prompt design
 
-The Duo Workflow agent enters tool-routing loops when prompts are too long or unfocused. The system prompt in [`flow.yml`](flows/flow.yml) is structured in strict numbered steps: read inputs, generate k6 script, commit, execute, report. k6 generation rules (executor types, threshold syntax, validation patterns, `handleSummary` format) are inline in the same prompt, organized by section. GraphRAG keeps spec context to ~350 tokens.
+The Duo Workflow agent enters tool-routing loops when prompts are too long or unfocused. The system prompt in [`flow.yml`](flows/flow.yml) is structured in strict numbered steps: read inputs, generate k6 script, commit, execute, report. k6 generation rules (executor types, threshold syntax, validation patterns, `handleSummary` format) are inline in the same prompt, organized by section. GraphRAG keeps spec context under 500 tokens.
 
 The key constraint: the agent must post the `run_command` output verbatim as the MR note. No summarizing, no reformatting. This ensures the deterministic report reaches the MR exactly as generated.
 
