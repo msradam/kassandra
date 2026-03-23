@@ -1,6 +1,6 @@
 # Kassandra
 
-Performance testing agent for GitLab merge requests that doesn't just analyze — it executes. Mention it on an MR. It reads the diff, generates a [Grafana k6](https://k6.io/) load test, runs it against the live application, and posts a performance report with real latency numbers, threshold pass/fail verdicts, and Mermaid charts as an MR comment. No test authoring. No CI configuration. One config file per project.
+Performance testing agent for GitLab merge requests. Mention it on an MR. It reads the diff, generates a [Grafana k6](https://k6.io/) load test, executes it against the live application, and posts a performance report with actual latency numbers, threshold pass/fail verdicts, and Mermaid charts as an MR comment. No test authoring. No CI configuration. One config file per project.
 
 Built on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/development/duo_workflow/) for the [GitLab AI Hackathon 2026](https://gitlab-ai-hackathon.devpost.com/).
 
