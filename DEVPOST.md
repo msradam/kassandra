@@ -79,6 +79,8 @@ Sample output for a single endpoint:
 ```
 $ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --spec demos/midas-bank/openapi.json --diff-stdin
 
+## GraphRAG Traversal
+
 Graph: 104 nodes, 107 edges
 Matched endpoints: 1
 
@@ -90,10 +92,18 @@ Matched endpoints: 1
     │  ├─ .description: string
     ├─ RETURNS → TransactionOut (schema)
     │  ├─ .id: integer
+    │  ├─ .from_account_id: integer|null
+    │  ├─ .to_account_id: integer|null
     │  ├─ .amount: number
     │  ├─ .type: string
     │  ├─ .description: string|null
     │  ├─ .created_at: string|null
+    ├─ RETURNS → HTTPValidationError (schema)
+    │  ├─ .detail: array<ValidationError>
+    │  └─ REFERENCES → ValidationError
+    │     ├─ .loc: array
+    │     ├─ .msg: string
+    │     ├─ .type: string
     ├─ HAS_PARAM → authorization (header)
 
 Retrieved: 4 schemas, 1 params, auth=yes
