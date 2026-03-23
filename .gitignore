@@ -46,17 +46,12 @@ CLAUDE.md
 .vscode/
 slides/
 
-# Root-level demo screenshots (keep assets/ dir)
+# Assets (keep on disk, not in repo)
+assets/
+
+# Root-level demo screenshots
 /demo-*.png
 /fortune-teller-*.png
-
-# Video build artifacts
-assets/*.mp4
-assets/*.txt
-assets/fonts/
-assets/slides.*
-assets/voiceover-script.md
-assets/banners/*.html
 
 # Root dev tooling (playwright for screenshots)
 /package.json
