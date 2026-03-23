@@ -160,3 +160,7 @@ For the full technical deep dive, see [README.md](https://gitlab.com/gitlab-ai-h
 - **Baseline profiles on main**: auto-run on merge to build regression baselines
 - **SLO alerting**: auto-create GitLab issues when performance degrades across runs
 - **Community adoption**: publish the `AGENTS.md` convention so any project can onboard
+
+---
+
+Icon: "fortune teller" by Eucalyp from [the Noun Project](https://thenounproject.com/icon/fortune-teller-4395882/) (CC BY 3.0)
