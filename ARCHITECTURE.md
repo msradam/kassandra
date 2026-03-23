@@ -5,32 +5,32 @@ Technical deep dive into Kassandra's design, a proof of concept for AI-driven pe
 ## System overview
 
 ```
-                          GitLab MR
-                              │
-                         @mention trigger
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │  Duo Workflow Agent  │
-                    │  (Anthropic model)   │
-                    └─────────┬───────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-              ▼               ▼               ▼
-        ┌───────────┐  ┌───────────┐  ┌───────────────┐
-        │ read_file │  │run_command│  │ create_commit  │
-        │           │  │           │  │ create_note    │
-        └─────┬─────┘  └─────┬─────┘  └───────┬───────┘
-              │               │                │
-     ┌────────┤        ┌──────┤                │
-     │        │        │      │                │
-     ▼        ▼        ▼      ▼                ▼
-  MR diff  AGENTS.md GraphRAG  run-k6-test.sh  Report posted
-                      (BFS)   (app+k6+report)  to MR
+GitLab MR
+  │
+  @mention trigger
+  │
+  ▼
+Duo Workflow Agent (Anthropic model)
+  │
+  1. get_merge_request ──── MR metadata (branch, IID)
+  │
+  2. list_merge_request_diffs ──── code diff
+  │
+  3. read_file ──── AGENTS.md routing table
+  │                 └── demos/{app}/AGENTS.md (SLOs, auth, exec command)
+  │
+  4. run_command ──── GraphRAG: openapi.json → DiGraph → BFS → relevant schemas
+  │
+  5. create_file_with_contents ──── k6 script + GraphRAG output
+  │
+  6. create_commit ──── test committed to MR branch
+  │
+  7. run_command ──── run-k6-test.sh (app startup → k6 → report → cleanup)
+  │
+  8. create_merge_request_note ──── Mermaid report posted to MR
 ```
 
-The agent runs on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/development/duo_workflow/), which provides five tools: `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The sandbox runs Anthropic models by default. Everything below works within these constraints.
+The agent runs on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/development/duo_workflow/), which provides these tools: `get_merge_request`, `list_merge_request_diffs`, `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The sandbox runs Anthropic models by default. Everything below works within these constraints.
 
 ## OpenAPI GraphRAG
 
@@ -114,18 +114,9 @@ Kassandra exclusively generates open-model executors. The agent prompt in [`agen
 
 ## Report generation
 
-### The delimiter pattern
+### Report pipeline
 
-The agent generates k6 scripts that include a `handleSummary()` function writing JSON output to `k6/kassandra/results/`. After k6 completes, [`generate-report.py`](scripts/generate-report.py) converts this JSON into Markdown with Mermaid charts. The output is wrapped in delimiters:
-
-```
-=== KASSANDRA REPORT START ===
-## 🔮 Kassandra Performance Report
-...
-=== KASSANDRA REPORT END ===
-```
-
-The agent reads stdout, extracts the content between delimiters, and posts it via `create_merge_request_note`. The LLM never generates Mermaid syntax.
+The agent generates k6 scripts that include a `handleSummary()` function writing JSON output to `k6/kassandra/results/`. After k6 completes, [`generate-report.py`](scripts/generate-report.py) converts this JSON into Markdown with Mermaid charts and writes it to a report file. The shell script pipes this file to stdout (via fd redirection), which is the only output the agent sees. The agent posts it verbatim via `create_merge_request_note`. The LLM never generates Mermaid syntax.
 
 ### Chart generation
 
@@ -201,9 +192,9 @@ The agent reads the diff, identifies which files changed, and loads the matching
 
 ## Prompt design
 
-The Duo Workflow agent enters tool-routing loops when the prompt exceeds ~60 lines. The [flow prompt](flows/flow.yml) is 20 lines. Detailed k6 generation rules (executor types, threshold syntax, validation patterns, handleSummary format) live in [`agent.yml`](agents/agent.yml). GraphRAG keeps spec context to ~350 tokens.
+The Duo Workflow agent enters tool-routing loops when prompts are too long or unfocused. The system prompt in [`flow.yml`](flows/flow.yml) is structured in strict numbered steps: read inputs, generate k6 script, commit, execute, report. k6 generation rules (executor types, threshold syntax, validation patterns, `handleSummary` format) are inline in the same prompt, organized by section. GraphRAG keeps spec context to ~350 tokens.
 
-The separation is deliberate: the flow tells the agent *what to do*. The agent definition tells it *how to do each step*. GraphRAG tells it *what to test*. Each layer is minimal.
+The key constraint: the agent must post the `run_command` output verbatim as the MR note. No summarizing, no reformatting. This ensures the deterministic report reaches the MR exactly as generated.
 
 ## Baseline regression detection
 
