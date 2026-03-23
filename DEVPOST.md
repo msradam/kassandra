@@ -1,28 +1,17 @@
-# Devpost Submission: Kassandra
+# Kassandra: AI Performance Testing Agent
 
-> Copy-paste into each Devpost field.
+> Performance prophecy for every merge request. Kassandra turns code diffs into load tests, executes them, and catches regressions before production does.
 
----
-
-## Title
-
-Kassandra: AI Performance Testing Agent
-
-## Tagline
-
-Performance prophecy for every merge request. Kassandra turns code diffs into load tests, executes them, and catches regressions before production does.
-
----
 ## Summary
-Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io/) load tests from GitLab merge request diffs, executes them against the live application, and reports real runtime results. Mention it on an MR. It reads the diff, retrieves relevant API schemas via OpenAPI GraphRAG, generates a load test, starts the app, runs k6, and posts a performance report with actual latency numbers, Mermaid charts, and regression detection. No tests to write. No pipelines to configure. One config file per project.
+**Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io/) load tests from GitLab merge request diffs, executes them against the live application, and reports real runtime results.** [k6](https://k6.io/) is Grafana's open-source load testing engine ([30k+ GitHub stars](https://github.com/grafana/k6)), a compiled Go binary that runs JavaScript test scripts at high concurrency. Mention Kassandra on an MR and it handles the rest: reads the diff, retrieves relevant API schemas via OpenAPI GraphRAG, generates a load test, starts the app, runs k6, and posts a performance report with actual latency numbers, Mermaid charts, and regression detection. No tests to write. No pipelines to configure. One config file per project.
 
 ## Why performance testing matters
 
 Some bugs only appear under load. A SQLite endpoint that passes every unit test can fail 60% of requests when concurrent users hit it, because thread-safety constraints only surface under real concurrency. **Unit tests verify logic. Load tests verify behavior under production conditions.** They catch different classes of bugs.
 
-The cost of skipping load testing is well-documented. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Unplanned downtime now averages [$14,056 per minute](https://www.erwoodgroup.com/blog/the-true-costs-of-downtime-in-2025-a-deep-dive-by-business-size-and-industry/), rising to $23,750 for large enterprises. Siemens found that unscheduled downtime [saps 11% of annual revenues](https://www.ismworld.org/supply-management-news-and-reports/news-publications/inside-supply-management-magazine/blog/2024/2024-08/the-monthly-metric-unscheduled-downtime/) from the world's 500 biggest companies, totaling **$1.4 trillion per year**.
+The cost of skipping load testing is well-documented. Amazon found that every [100ms of latency costs 1% in sales](https://www.gigaspaces.com/blog/amazon-found-every-100ms-of-latency-cost-them-1-in-sales/). Unplanned downtime now averages [$14,056 per minute](https://www.erwoodgroup.com/blog/the-true-costs-of-downtime-in-2025-a-deep-dive-by-business-size-and-industry/), rising to $23,750 for large enterprises. Siemens found that unscheduled downtime [saps 11% of annual revenues](https://www.ismworld.org/supply-management-news-and-reports/news-publications/inside-supply-management-magazine/blog/2024/2024-08/the-monthly-metric-unscheduled-downtime/) from the world's 500 biggest companies, totaling <u>$1.4 trillion per year</u>.
 
-Companies that do load test see the difference. [fuboTV uses Grafana k6](https://grafana.com/success/k6-fubotv/) to catch performance regressions before production during high-traffic sporting events. [Olo processes millions of restaurant orders per day](https://grafana.com/success/k6-olo/) and integrated k6 into their CI/CD pipeline so every release is verified under load before deployment. The pattern is the same: teams that test under load ship with confidence. **Teams that don't ship with hope.**
+Companies that do load test see the difference. [fuboTV uses Grafana k6](https://grafana.com/success/k6-fubotv/) to catch performance regressions before production during high-traffic sporting events. [Olo processes millions of restaurant orders per day](https://grafana.com/success/k6-olo/) and integrated k6 into their CI/CD pipeline so every release is verified under load before deployment. The pattern is the same: **teams that test under load find bugs before users do. Teams that don't, don't.**
 
 But performance testing doesn't scale with development velocity. Teams ship endpoints faster than they can test them. Someone still has to write and maintain the load test scripts. Most teams don't. [Grafana k6](https://k6.io/) supports [shift-left testing](https://grafana.com/docs/k6/latest/testing-guides/test-types/) in CI/CD pipelines. [Schemathesis](https://schemathesis.io/) does schema-based fuzzing. [Dredd](https://dredd.org/) does contract validation. k6 Cloud handles execution. None of them read a diff, generate a targeted load test, run it, and post the results back to the MR. **To my knowledge, no existing tool closes this loop.**
 
@@ -30,20 +19,20 @@ This is where an LLM fits. Generating a correct k6 script from a code diff requi
 
 ## Inspiration
 
-Last year I [ported Grafana k6 to IBM z/OS mainframes](https://medium.com/theropod/go-ing-native-porting-grafana-k6-to-z-os-with-go-f7f73267c1c), compiling it natively so it could run 24/7 as both the control and managed node on the same machine. That project convinced me k6 is the right engine for load testing: [30k+ GitHub stars](https://github.com/grafana/k6), cloud native, scriptable, compiled Go binary you can drop anywhere. Kassandra takes k6 to its logical extreme: an AI agent writes the test from the merge request diff.
+Last year I [ported Grafana k6 to IBM z/OS mainframes](https://medium.com/theropod/go-ing-native-porting-grafana-k6-to-z-os-with-go-f7f73267c1c), compiling it natively so it could run 24/7 as both the control and managed node on the same machine. That project convinced me k6 is the right engine for load testing: cloud native, scriptable, runs anywhere. Kassandra takes k6 to its logical extreme: an AI agent writes the test from the merge request diff.
 
 The name comes from Greek mythology. Kassandra had the gift of prophecy but was cursed so no one would believe her. This Kassandra sees your performance problems before production does, and posts the proof where you can't ignore it.
 
 ## What it does
 
-**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, starts the application, runs the test against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. **This is runtime performance data, not static analysis.**
+**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, starts the application, runs the test against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>This is runtime performance data, not static analysis.</u>
 
-On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every unit test passed. Every manual API call returned the right data. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. **No human prompted it to look for either issue.**
+On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every unit test passed. Every manual API call returned the right data. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. <u>No human prompted it to look for either issue.</u>
 
 Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge request. Kassandra:
 
 1. **Reads the MR diff** to identify new or changed API endpoints
-2. **Retrieves relevant schemas** via OpenAPI GraphRAG, reducing input tokens by ~95% ([verified via A/B test against the Anthropic API](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py))
+2. **Retrieves relevant schemas** via OpenAPI GraphRAG, pre-resolving `$ref` chains so the model sees fields and types directly, not pointers to chase (~95% token reduction, [A/B verified](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py))
 3. **Scans the diff for risks**: N+1 query loops, unbounded SELECTs, `fetchall()` loading all rows, missing pagination
 4. **Generates a k6 load test** with [open-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) and per-endpoint SLO thresholds, then validates responses against the OpenAPI spec: status codes, content types, body fields, schema structure
 5. **Commits the test** to the MR branch (fully auditable in code review)
@@ -64,9 +53,9 @@ No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.
 | [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 8/9 pass | Memory exhaustion risk flagged (`fetchall`) |
 | [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 9/11 pass | Clean, 4,000+ validation checks generated |
 
-Every row is a real k6 run: the agent started the app, sent concurrent HTTP requests, measured latency percentiles, validated response schemas, and posted results back to the MR. The Duo Workflow runner is a lightweight container, so these are smoke tests, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted where it matters most (the code that just changed), and fully automated.
+Every row is a real k6 run: the agent started the app, sent concurrent HTTP requests, measured latency percentiles, validated response schemas, and posted results back to the MR. The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. Fully automated.
 
-Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/76)–[!80](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/80)) across all three demo apps are available for judges to trigger Kassandra against live.
+Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/76)–[!80](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/80)) across all three demo apps are available for judges to trigger Kassandra on live.
 
 ## How I built it
 
@@ -76,7 +65,7 @@ Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participa
 
 Kassandra's k6 scripts run unsupervised against a live server. A wrong field name in a validation check means a misleading test failure. Dumping a full OpenAPI spec into the prompt forces the model to chase [`$ref` pointers](https://swagger.io/docs/specification/v3_0/using-ref/) at inference time while simultaneously writing a k6 script. GraphRAG pre-resolves those `$ref` chains into an explicit typed tree: every field pre-associated with its parent schema and endpoint. The model gets only the schemas reachable from the changed endpoints, with no pointer chasing required.
 
-The result: **~95% fewer input tokens and zero hallucinated endpoints** across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. See [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) for the full technical deep dive.
+The result: <u>zero hallucinated endpoints and ~95% fewer input tokens</u> across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. See [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) for the full technical deep dive.
 
 Sample output for a single endpoint:
 
@@ -131,7 +120,7 @@ Three sample applications built for this hackathon, each with intentional perfor
 | Calliope Books | JavaScript / [Express](https://expressjs.com/) / [sql.js](https://sql.js.org/) | 17 |
 | Hestia Eats | TypeScript / [Hono](https://hono.dev/) / in-memory | 19 |
 
-All use embedded databases or in-memory stores. Zero external dependencies. Each has an [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config and an `openapi.json` spec. **Same agent, three stacks, zero code changes.** Only the per-project config differs. The polyglot setup is deliberate: it demonstrates that Kassandra generalizes across entirely different stacks, not endpoints within a single app.
+Each app uses production frameworks and real database layers (SQLite, sql.js, in-memory stores), with full CRUD, authentication, pagination, and 11–19 endpoints per app. All have an [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config and an `openapi.json` spec. **Same agent, three stacks, zero code changes.** Only the per-project config differs. The polyglot setup is deliberate: it demonstrates that Kassandra generalizes across entirely different stacks, not endpoints within a single app.
 
 ## Challenges I ran into
 
