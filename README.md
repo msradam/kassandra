@@ -44,23 +44,26 @@ When an MR changes an endpoint, [BFS traversal](https://en.wikipedia.org/wiki/Br
 Identical schema field coverage. Zero hallucinated endpoints across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). 57 unit tests, ~0.1s runtime.
 
 ```
-$ echo '+@app.post("/api/transactions/transfer")' | python -m graphrag --spec openapi.json --diff-stdin
+$ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --spec demos/midas-bank/openapi.json --diff-stdin
 
-Graph: 76 nodes, 79 edges
+Graph: 104 nodes, 107 edges
 Matched endpoints: 1
 
-  * POST /api/transactions/transfer
-    |-- ACCEPTS -> TransferRequest (schema)
-    |   |-- .from_account_id: integer
-    |   |-- .to_account_id: integer
-    |   |-- .amount: number
-    |-- RETURNS -> TransactionOut (schema)
-    |   |-- .id: integer
-    |   |-- .amount: number
-    |   |-- .type: string
-    |-- HAS_PARAM -> authorization (header)
+  ● POST /api/transactions/transfer
+    ├─ ACCEPTS → TransferRequest (schema)
+    │  ├─ .from_account_id: integer
+    │  ├─ .to_account_id: integer
+    │  ├─ .amount: number
+    │  ├─ .description: string
+    ├─ RETURNS → TransactionOut (schema)
+    │  ├─ .id: integer
+    │  ├─ .amount: number
+    │  ├─ .type: string
+    │  ├─ .description: string|null
+    │  ├─ .created_at: string|null
+    ├─ HAS_PARAM → authorization (header)
 
-Retrieved: 4 schemas, 1 params
+Retrieved: 4 schemas, 1 params, auth=yes
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
@@ -71,12 +74,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
 |----|-----|----------|------------|---------|
 | !36 | Midas Bank | 74 | 2/2 pass | Clean |
 | !37 | Midas Bank | 863 | 8/8 pass | Clean |
-| !39 | Calliope Books | 576 | 1/3 pass | **Bug caught** |
+| !39 | Calliope Books | 576 | 1/3 pass | **Route ordering bug caught** |
 | !41 | Hestia Eats | 728 | 8/8 pass | Clean |
+| !69 | Midas Bank | 2,828 | 3/5 pass | **SQLite thread-safety bug caught** |
 | !74 | Midas Bank | 2,830 | 8/9 pass | Risk: `fetchall()` flagged |
 | !75 | Calliope Books | 306 | 9/11 pass | 4,000+ validation checks |
 
-MR !39 is the interesting one. Kassandra ran the test, saw a 100% failure rate on `/api/books/suggestions`, and diagnosed the root cause: Express.js [route ordering](https://expressjs.com/en/guide/routing.html). The route `/api/books/:id` was declared before `/api/books/suggestions`, so Express matched "suggestions" as an `:id` parameter and returned 404. The agent identified the exact fix in its report. No human intervention.
+MR !69 caught a SQLite thread-safety bug that passes every unit test but fails under concurrent load. FastAPI runs requests in a thread pool, but the SQLite connection wasn't thread-safe. The endpoint failed 60.6% of requests under load. Kassandra diagnosed the exact error and recommended the fix.
+
+MR !39 caught an Express.js [route ordering](https://expressjs.com/en/guide/routing.html) bug. `/api/books/:id` was declared before `/api/books/suggestions`, so Express matched "suggestions" as an `:id` parameter and returned 404. 100% failure rate. Both bugs were found autonomously.
 
 ## Demo applications
 
