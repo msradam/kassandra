@@ -116,7 +116,7 @@ def run_test(test_config: dict) -> dict:
     )
 
     # A: Full spec
-    print(f"  Running A (full spec)...")
+    print("  Running A (full spec)...")
     t0 = time.time()
     resp_a = client.messages.create(
         model=MODEL, max_tokens=4096, system=SYSTEM,
@@ -126,7 +126,7 @@ def run_test(test_config: dict) -> dict:
     code_a = resp_a.content[0].text
 
     # B: GraphRAG
-    print(f"  Running B (GraphRAG)...")
+    print("  Running B (GraphRAG)...")
     t0 = time.time()
     resp_b = client.messages.create(
         model=MODEL, max_tokens=4096, system=SYSTEM,
@@ -204,12 +204,12 @@ if __name__ == "__main__":
     total_hall_graphrag = sum(r["hallucinations_graphrag"] for r in results)
     print(f"\n  Average token reduction: {avg_token:.1f}%")
     print(f"  Total hallucinated endpoints: {total_hall_full} (full spec) vs {total_hall_graphrag} (graphrag)")
-    print(f"\n  Generated scripts saved to k6/kassandra/results/proof-*.js")
+    print("\n  Generated scripts saved to k6/kassandra/results/proof-*.js")
 
     # Save summary to file
     output_path = "scripts/graphrag-proof-output.txt"
     with open(output_path, "w") as f:
-        f.write(f"GraphRAG A/B Test Results\n")
+        f.write("GraphRAG A/B Test Results\n")
         f.write(f"Model: {MODEL}\n")
         f.write(f"Date: {time.strftime('%Y-%m-%d')}\n\n")
         for r in results:
