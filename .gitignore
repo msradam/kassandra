@@ -34,12 +34,36 @@ summary.json
 openapitools.json
 output/
 
-# Internal strategy (not for submission)
+# Internal strategy and demo notes (not for submission)
 STRATEGY.md
+DEMO_SCRIPT.md
+CLAUDE.md
+.claude/
 
-# Screenshots and temp files
-*.png
+# Temp files
 *.webm
 .playwright-mcp/
 .vscode/
 slides/
+
+# Root-level demo screenshots (keep assets/ dir)
+/demo-*.png
+/fortune-teller-*.png
+
+# Video build artifacts
+assets/*.mp4
+assets/*.txt
+assets/fonts/
+assets/slides.*
+assets/voiceover-script.md
+assets/banners/*.html
+
+# Root dev tooling (playwright for screenshots)
+/package.json
+/package-lock.json
+
+# Demo recording scripts
+scripts/record-demo.ts
+scripts/screenshot-mrs.ts
+scripts/screenshot-reports.ts
+scripts/prove-context-reduction.py
