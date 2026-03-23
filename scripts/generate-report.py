@@ -169,7 +169,7 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
     # One-line verdict
     ep_count = len(endpoint_metrics)
     if all_pass:
-        verdict = f"✅ **PASS** — All thresholds met"
+        verdict = "✅ **PASS** — All thresholds met"
     else:
         verdict = f"❌ **FAIL** — {thresh_fail} threshold{'s' if thresh_fail != 1 else ''} breached"
     if ep_count:
@@ -227,7 +227,6 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
     has_baseline = bool(baseline)
     regressions = []
     if has_baseline:
-        b_global = baseline.get("global", {})
         b_endpoints = baseline.get("endpoints", {})
         # Check each endpoint for regressions
         for ep_name, v in sorted(endpoint_metrics.items()):
@@ -500,7 +499,6 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
         graphrag_lines = graphrag_report.strip().splitlines()
         truncated = []
         in_endpoint = False
-        current_depth = 0
         for gl in graphrag_lines:
             stripped = gl.strip()
             if stripped == "---":
@@ -513,7 +511,6 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
             # Show endpoint names and their immediate RETURNS/ACCEPTS/HAS_PARAM edges (depth 1 only)
             if stripped.startswith("●"):
                 in_endpoint = True
-                current_depth = 0
                 truncated.append(gl)
                 continue
             if in_endpoint:
@@ -521,7 +518,7 @@ def format_report(data: dict, baseline_data: dict | None = None, risk_report: st
                     truncated.append(gl)
                 # Skip deeper nesting (schema properties)
         # Add summary
-        total_eps = len([l for l in graphrag_lines if l.strip().startswith("●")])
+        total_eps = len([ln for ln in graphrag_lines if ln.strip().startswith("●")])
         truncated.append("")
         # Parse node/edge counts from header
         graph_info = ""

@@ -1,4 +1,4 @@
-"""Build a NetworkX directed graph from an OpenAPI 3.x spec.
+"""Build a directed graph from an OpenAPI 3.x spec.
 
 Nodes: endpoints, schemas, properties, parameters, security schemes.
 Edges: RETURNS, ACCEPTS, HAS_PROPERTY, REFERENCES, REQUIRES_AUTH, HAS_PARAM.
