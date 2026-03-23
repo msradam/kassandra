@@ -59,7 +59,7 @@ When the full OpenAPI spec is included in the LLM context, the model can generat
 
 ### The DiGraph implementation
 
-[`digraph.py`](graphrag/digraph.py) is a 114-line directed graph with no external dependencies. It supports `add_node`, `add_edge`, `neighbors`, `bfs`, `subgraph`, and `number_of_nodes/edges`. No imports beyond the standard library.
+[`digraph.py`](graphrag/digraph.py) is a 114-line directed graph with no external dependencies. It supports `add_node`, `add_edge`, `successors`, `edges`, `subgraph`, and `number_of_nodes/edges`. No imports beyond the standard library.
 
 I initially tried using NetworkX on the Duo Workflow runner but hit dependency installation issues. The runner environment doesn't guarantee third-party package availability. A minimal custom graph that does exactly what's needed (BFS traversal and subgraph extraction) turned out to be more reliable and imports in milliseconds.
 
@@ -91,7 +91,7 @@ The retriever extracts endpoint paths from unified diff format. It matches lines
 | Spec | Nodes | Edges | Full spec (tokens) | GraphRAG (tokens) | Reduction |
 |------|-------|-------|-------------------|-------------------|-----------|
 | Midas Bank | 104 | 107 | 6,403 | 347 | 94.6% |
-| Calliope Books | 107 | 106 | 6,407 | 303 | 95.3% |
+| Calliope Books | 88 | 88 | 6,407 | 303 | 95.3% |
 | Hestia Eats | 164 | 180 | 8,967 | 450 | 95.0% |
 
 Verified via [A/B test against the Anthropic API](scripts/graphrag-proof.py) using Claude Sonnet ([results](scripts/graphrag-proof-output.txt)). Both conditions (full spec vs. GraphRAG) were tested on the same endpoints with the same system prompt. Across all three test scenarios, GraphRAG produced identical schema field coverage and zero hallucinated endpoints.
