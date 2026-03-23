@@ -66,7 +66,7 @@ Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participa
 
 ## How I built it
 
-**Platform:** [GitLab Duo Workflow](https://docs.gitlab.com/ee/development/duo_workflow/) with `get_merge_request`, `list_merge_request_diffs`, `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The Duo Workflow sandbox runs [Anthropic models by default](https://docs.gitlab.com/ee/development/duo_workflow/).
+**Platform:** [GitLab Duo Workflow](https://docs.gitlab.com/ee/development/duo_workflow/) with `get_merge_request`, `list_merge_request_diffs`, `read_file`, `run_command`, `create_file_with_contents`, `create_commit`, and `create_merge_request_note`. The Duo Workflow sandbox runs Anthropic models by default.
 
 ### OpenAPI GraphRAG
 
