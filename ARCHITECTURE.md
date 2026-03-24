@@ -36,7 +36,7 @@ The agent runs on the [GitLab Duo Workflow Platform](https://docs.gitlab.com/ee/
 
 ### The problem with full-spec prompting
 
-When the full OpenAPI spec is included in the LLM context, the model can generate tests for endpoints that exist in the spec but weren't changed in the MR. GraphRAG cuts ~95% of input tokens while keeping identical schema field coverage (see [A/B test results](scripts/graphrag-proof-output.txt)). Fewer tokens means faster iteration, lower cost, and less room for the model to pick up unrelated endpoints.
+When the full OpenAPI spec is included in the LLM context, the model can generate tests for endpoints that exist in the spec but weren't changed in the MR. GraphRAG pre-resolves `$ref` chains into an explicit typed tree, eliminating hallucinated endpoints and cutting ~95% of input tokens while keeping identical schema field coverage (see [A/B test results](scripts/graphrag-proof-output.txt)). Fewer tokens means faster iteration, lower cost, and less room for the model to pick up unrelated endpoints.
 
 ### Graph construction
 
