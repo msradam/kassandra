@@ -37,7 +37,7 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge
 4. **Generates a k6 load test** with [open-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) and per-endpoint SLO thresholds, then validates responses against the OpenAPI spec: status codes, content types, body fields, schema structure
 5. **Commits the test** to the MR branch (fully auditable in code review)
 6. **Runs the test**: starts the app, executes k6, shuts everything down
-7. **Posts the report** as an MR comment: [Mermaid](https://mermaid.js.org/) latency bar charts and pie charts, threshold pass/fail tables, per-endpoint breakdowns, timing phase analysis, regression detection
+7. **Posts the report** as an MR comment: [Mermaid](https://mermaid.js.org/) latency bar charts and pie charts, threshold pass/fail tables, per-endpoint breakdowns, timing phase analysis, regression detection. The report is self-contained — a developer reading the MR comment immediately sees what's broken, why, and how to fix it, without needing to know anything about Kassandra.
 
 No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config per project.
 
