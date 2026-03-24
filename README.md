@@ -18,7 +18,7 @@ To my knowledge, no existing tool auto-generates k6 performance tests from merge
 
 Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any MR. The agent:
 
-1. Reads the MR diff to identify new/changed API endpoints
+1. Reads the actual code diff to identify new/changed API endpoints from route declarations
 2. Routes to the correct project config via diff file paths
 3. Retrieves relevant API schemas via OpenAPI GraphRAG (~95% input token reduction)
 4. Scans the diff for performance anti-patterns (N+1 queries, unbounded SELECTs, missing pagination)
@@ -80,7 +80,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
 
 ## Results
 
-24+ autonomous k6 runs across 50+ merge requests during iterative development. Highlights:
+24 completed end-to-end runs out of 37 triggers during active development. Incomplete runs reflect iterative prompt and flow changes, not k6 failures: every run that reached test execution produced a valid report. ~24,200 total requests across all runs. Highlights:
 
 | MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
 |----|-----|----------|-----|-------|-----|------------|---------|

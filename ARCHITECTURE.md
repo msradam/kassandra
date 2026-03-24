@@ -85,7 +85,9 @@ Depth 2 was chosen empirically. Depth 1 misses property-level detail (the LLM ca
 
 ### Diff parsing
 
-The retriever extracts endpoint paths from unified diff format. It matches lines starting with `+` that contain HTTP method patterns (`@app.get`, `@app.post`, `router.get`, `app.get`, etc.) across Python, JavaScript, and TypeScript conventions. The matched paths are fuzzy-matched against the graph's endpoint nodes.
+The retriever extracts endpoint paths from the **actual code diff** (the output of `list_merge_request_diffs`), not from OpenAPI spec changes. It matches added lines (starting with `+`) that contain route declaration patterns (`@app.get`, `@app.post`, `router.get`, `app.get`, etc.) across Python, JavaScript, and TypeScript conventions.
+
+The matched paths are fuzzy-matched against the graph's endpoint nodes. Kassandra detects what the developer actually changed in their source code, then looks up the corresponding schemas from the OpenAPI spec via GraphRAG.
 
 ### Measured results
 
