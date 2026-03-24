@@ -27,7 +27,7 @@ The name comes from Greek mythology. Kassandra had the gift of prophecy but was 
 
 **Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, deploys the application, runs concurrent virtual users against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>This is runtime performance data from a live server under concurrent load, not static analysis.</u>
 
-On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every unit test passed. Every manual API call returned the right data. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. <u>No human prompted it to look for either issue.</u>
+On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every API call returned the correct response. The endpoint worked perfectly in serial. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. <u>No human prompted it to look for either issue.</u>
 
 Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge request. Kassandra:
 
