@@ -104,7 +104,7 @@ Three sample applications built for this hackathon, each with intentional perfor
 | Calliope Books | JavaScript / Express / sql.js | 3000 | 17 | N+1 queries, unoptimized LIKE, route ordering bugs |
 | Hestia Eats | TypeScript / Hono / in-memory | 8080 | 19 | N+1 restaurant enrichment, iterative lookups |
 
-Each app uses production frameworks and real database layers (SQLite, sql.js, in-memory stores), with full CRUD, authentication, pagination, and 11–19 endpoints per app. Zero external dependencies. Each includes an `AGENTS.md` with project-specific SLOs and auth config, and an `openapi.json` spec.
+Each app uses production frameworks and real database layers (SQLite, sql.js, in-memory stores), with authentication, pagination, and 11–19 endpoints per app. Zero external dependencies. Each includes an `AGENTS.md` with project-specific SLOs and auth config, and an `openapi.json` spec.
 
 ## Architecture
 

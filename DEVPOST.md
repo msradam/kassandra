@@ -126,7 +126,7 @@ Three sample applications built for this hackathon, each with intentional perfor
 | Calliope Books | JavaScript / [Express](https://expressjs.com/) / [sql.js](https://sql.js.org/) | 17 |
 | Hestia Eats | TypeScript / [Hono](https://hono.dev/) / in-memory | 19 |
 
-Each app uses production frameworks and real database layers (SQLite, sql.js, in-memory stores), with full CRUD, authentication, pagination, and 11–19 endpoints per app. All have an [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config and an `openapi.json` spec. **Same agent, three stacks, zero code changes.** Only the per-project config differs. The polyglot setup is deliberate: it demonstrates that Kassandra generalizes across entirely different stacks, not endpoints within a single app.
+Each app uses production frameworks and real database layers (SQLite, sql.js, in-memory stores), with authentication, pagination, and 11–19 endpoints per app. All have an [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config and an `openapi.json` spec. **Same agent, three stacks, zero code changes.** Only the per-project config differs. The polyglot setup is deliberate: it demonstrates that Kassandra generalizes across entirely different stacks, not endpoints within a single app.
 
 ## Challenges I ran into
 
