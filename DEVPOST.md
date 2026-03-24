@@ -118,7 +118,7 @@ Retrieved: 4 schemas, 1 params, auth=yes
 
 ### Demo applications
 
-Three sample applications built for this hackathon, each with intentional performance anti-patterns for Kassandra to detect:
+Three sample applications spanning latency-sensitive industries (banking, retail, food delivery), each with intentional performance anti-patterns for Kassandra to detect:
 
 | App | Stack | Endpoints |
 |-----|-------|-----------|
