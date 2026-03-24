@@ -43,17 +43,17 @@ No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.
 
 ### Results: seven real k6 runs across three apps
 
-| MR | App | Requests | Thresholds | Outcome |
-|----|-----|----------|------------|---------|
-| [!36](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/36) | Midas Bank (Python/FastAPI) | 74 | 2/2 pass | Clean |
-| [!37](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/37) | Midas Bank (Python/FastAPI) | 863 | 8/8 pass | Clean |
-| [!39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39) | Calliope Books (Node/Express) | 576 | 1/3 pass | **Route ordering bug diagnosed autonomously** |
-| [!41](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/41) | Hestia Eats (TypeScript/Hono) | 728 | 8/8 pass | Clean |
-| [!69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69) | Midas Bank (Python/FastAPI) | 2,828 | 3/5 pass | **SQLite thread-safety bug caught under load** |
-| [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 8/9 pass | Memory exhaustion risk flagged (`fetchall`) |
-| [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 9/11 pass | Clean, 4,000+ validation checks generated |
+| MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
+|----|-----|----------|-----|-------|-----|------------|---------|
+| [!36](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/36) | Midas Bank (Python/FastAPI) | 74 | — | 1.6 | 17.6ms | 2/2 pass | Clean |
+| [!37](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/37) | Midas Bank (Python/FastAPI) | 863 | — | 14.4 | 3.6ms | 8/8 pass | Clean |
+| [!39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39) | Calliope Books (Node/Express) | 576 | 55 | 22.9 | 1.5ms | 1/3 pass | **Route ordering bug: 100% failure** |
+| [!41](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/41) | Hestia Eats (TypeScript/Hono) | 728 | 75 | 29.1 | 1.1ms | 8/8 pass | Clean |
+| [!69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69) | Midas Bank (Python/FastAPI) | 2,828 | 60 | 113.1 | 47.0ms | 3/5 pass | **SQLite thread-safety: 60.6% failure** |
+| [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 60 | 112.9 | 3.6ms | 8/9 pass | Memory exhaustion risk (`fetchall`) |
+| [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 60 | 25.5 | 5.4ms | 9/11 pass | Clean, 4,000+ validation checks |
 
-Every row is a real k6 run: the agent deployed the application, spawned concurrent virtual users that sent live HTTP requests against it, measured latency percentiles under real concurrency, validated response schemas, and posted results back to the MR. These are not static analysis results or mocked responses. k6 hit a running server with parallel load.
+**Aggregate: 8,205 requests, 19 endpoints tested, up to 75 concurrent virtual users, peak 113 req/s.** Every row is a real k6 run: the agent deployed the application, spawned concurrent virtual users that sent live HTTP requests against it, measured latency percentiles under real concurrency, validated response schemas, and posted results back to the MR. These are not static analysis results or mocked responses. k6 hit a running server with parallel load.
 
 ![Kassandra Performance Report: threshold pass/fail table and pre-test risk analysis](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/487/293/datas/original.png)
 
