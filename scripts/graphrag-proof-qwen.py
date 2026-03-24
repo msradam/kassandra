@@ -1,12 +1,10 @@
 """
 A/B test: full OpenAPI spec vs GraphRAG context for k6 test generation.
-
-Sends the same prompt to Claude twice per endpoint — once with the full spec,
-once with only the GraphRAG-retrieved subgraph. Compares input tokens, schema
-field coverage, and hallucinated endpoints.
+Same test as graphrag-proof.py but using a local Qwen 2.5 Coder 7B model
+via Ollama to prove GraphRAG scales to smaller, less capable models.
 
 Usage:
-    ANTHROPIC_API_KEY=sk-... uv run python scripts/graphrag-proof.py
+    uv run python scripts/graphrag-proof-qwen.py
 """
 
 import json
@@ -14,16 +12,15 @@ import os
 import sys
 import time
 
-# Ensure project root is on the path when run as `uv run python scripts/graphrag-proof.py`
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import anthropic
+import urllib.request
 
 from graphrag.builder import OpenAPIGraph
 from graphrag.retriever import SubgraphRetriever
 
-MODEL = "claude-sonnet-4-20250514"
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+MODEL = "qwen2.5-coder:7b"
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
 SYSTEM = (
     "You are a k6 load test generator. Given an API spec context and a target endpoint, "
@@ -71,6 +68,32 @@ TESTS = [
 ]
 
 
+def chat(system: str, user: str) -> tuple[str, float]:
+    """Send a chat request to Ollama and return (response_text, duration_seconds)."""
+    payload = json.dumps({
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "stream": False,
+        "options": {"num_ctx": 32768},
+    }).encode()
+
+    req = urllib.request.Request(
+        OLLAMA_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    t0 = time.time()
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        data = json.loads(resp.read())
+    elapsed = time.time() - t0
+
+    return data["message"]["content"], elapsed
+
+
 def find_hallucinated_endpoints(code: str, all_paths: list[str], target_path: str) -> list[str]:
     """Find API paths in generated code that aren't the target endpoint."""
     hallucinated = []
@@ -82,7 +105,6 @@ def find_hallucinated_endpoints(code: str, all_paths: list[str], target_path: st
         path_base = path.split("{")[0].rstrip("/")
         if not path_base or len(path_base) <= 5:
             continue
-        # Skip parent paths that are substrings of the target
         if target_base.startswith(path_base):
             continue
         if path_base in code:
@@ -96,7 +118,6 @@ def run_test(test_config: dict) -> dict:
     full_spec_text = json.dumps(spec, indent=2)
     all_paths = list(spec.get("paths", {}).keys())
 
-    # Build graph and retrieve subgraph
     graph = OpenAPIGraph.from_spec(spec)
     retriever = SubgraphRetriever(graph)
     ctx = retriever.for_endpoints([test_config["endpoint_path"]])
@@ -107,6 +128,7 @@ def run_test(test_config: dict) -> dict:
     print(f"{'=' * 60}")
     print(f"  Graph: {graph.graph.number_of_nodes()} nodes, {graph.graph.number_of_edges()} edges")
     print(f"  Full spec: {len(full_spec_text):,} chars | GraphRAG: {len(graphrag_text):,} chars")
+    print(f"  Context reduction: {100 - len(graphrag_text) / len(full_spec_text) * 100:.1f}%")
 
     prompt = (
         f"Generate a k6 load test for: {test_config['endpoint']}\n\n"
@@ -116,24 +138,14 @@ def run_test(test_config: dict) -> dict:
     )
 
     # A: Full spec
-    print("  Running A (full spec)...")
-    t0 = time.time()
-    resp_a = client.messages.create(
-        model=MODEL, max_tokens=4096, system=SYSTEM,
-        messages=[{"role": "user", "content": prompt.replace("{context}", full_spec_text)}],
-    )
-    time_a = time.time() - t0
-    code_a = resp_a.content[0].text
+    print("  Running A (full spec)...", end=" ", flush=True)
+    code_a, time_a = chat(SYSTEM, prompt.replace("{context}", full_spec_text))
+    print(f"{time_a:.1f}s")
 
     # B: GraphRAG
-    print("  Running B (GraphRAG)...")
-    t0 = time.time()
-    resp_b = client.messages.create(
-        model=MODEL, max_tokens=4096, system=SYSTEM,
-        messages=[{"role": "user", "content": prompt.replace("{context}", graphrag_text)}],
-    )
-    time_b = time.time() - t0
-    code_b = resp_b.content[0].text
+    print("  Running B (GraphRAG)...", end=" ", flush=True)
+    code_b, time_b = chat(SYSTEM, prompt.replace("{context}", graphrag_text))
+    print(f"{time_b:.1f}s")
 
     # Compare results
     hall_a = find_hallucinated_endpoints(code_a, all_paths, test_config["endpoint_path"])
@@ -142,12 +154,9 @@ def run_test(test_config: dict) -> dict:
     cov_a = sum(1 for f in fields if f in code_a)
     cov_b = sum(1 for f in fields if f in code_b)
 
-    token_reduction = 100 - (resp_b.usage.input_tokens / resp_a.usage.input_tokens * 100)
-
     print(f"\n  {'Metric':<28} {'Full Spec':>12} {'GraphRAG':>12}")
     print(f"  {'─' * 54}")
-    print(f"  {'Input tokens':<28} {resp_a.usage.input_tokens:>12,} {resp_b.usage.input_tokens:>12,}  ({token_reduction:.1f}% reduction)")
-    print(f"  {'Output tokens':<28} {resp_a.usage.output_tokens:>12,} {resp_b.usage.output_tokens:>12,}")
+    print(f"  {'Context chars':<28} {len(full_spec_text):>12,} {len(graphrag_text):>12,}")
     print(f"  {'Latency (s)':<28} {time_a:>12.1f} {time_b:>12.1f}")
     print(f"  {'Schema fields covered':<28} {cov_a:>12}/{len(fields)} {cov_b:>12}/{len(fields)}")
     print(f"  {'Hallucinated endpoints':<28} {len(hall_a):>12} {len(hall_b):>12}")
@@ -160,29 +169,30 @@ def run_test(test_config: dict) -> dict:
     # Save generated scripts
     slug = test_config["app"].lower().replace(" ", "-")
     os.makedirs("k6/kassandra/results", exist_ok=True)
-    with open(f"k6/kassandra/results/proof-{slug}-full.js", "w") as f:
+    with open(f"k6/kassandra/results/proof-{slug}-qwen-full.js", "w") as f:
         f.write(code_a)
-    with open(f"k6/kassandra/results/proof-{slug}-graphrag.js", "w") as f:
+    with open(f"k6/kassandra/results/proof-{slug}-qwen-graphrag.js", "w") as f:
         f.write(code_b)
 
     return {
         "app": test_config["app"],
-        "token_reduction": token_reduction,
+        "context_chars_full": len(full_spec_text),
+        "context_chars_graphrag": len(graphrag_text),
+        "context_reduction": 100 - len(graphrag_text) / len(full_spec_text) * 100,
         "coverage_full": cov_a,
         "coverage_graphrag": cov_b,
         "total_fields": len(fields),
         "hallucinations_full": len(hall_a),
         "hallucinations_graphrag": len(hall_b),
-        "hallucination_details": hall_a,
+        "hallucination_details_full": hall_a,
+        "hallucination_details_graphrag": hall_b,
+        "latency_full": time_a,
+        "latency_graphrag": time_b,
     }
 
 
 if __name__ == "__main__":
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Set ANTHROPIC_API_KEY environment variable.")
-        sys.exit(1)
-
-    print(f"GraphRAG A/B Test — Model: {MODEL}")
+    print(f"GraphRAG A/B Test — Model: {MODEL} (local, via Ollama)")
     print(f"Tests: {len(TESTS)} endpoints across {len(TESTS)} demo apps")
 
     results = []
@@ -195,33 +205,42 @@ if __name__ == "__main__":
     print(f"{'=' * 60}")
     for r in results:
         print(f"\n  {r['app']}:")
-        print(f"    Token reduction:     {r['token_reduction']:.1f}%")
-        print(f"    Schema coverage:     {r['coverage_full']}/{r['total_fields']} (full) vs {r['coverage_graphrag']}/{r['total_fields']} (graphrag)")
+        print(f"    Context reduction:     {r['context_reduction']:.1f}%")
+        print(f"    Schema coverage:       {r['coverage_full']}/{r['total_fields']} (full) vs {r['coverage_graphrag']}/{r['total_fields']} (graphrag)")
         print(f"    Hallucinated endpoints: {r['hallucinations_full']} (full) vs {r['hallucinations_graphrag']} (graphrag)")
+        print(f"    Latency:               {r['latency_full']:.1f}s (full) vs {r['latency_graphrag']:.1f}s (graphrag)")
 
-    avg_token = sum(r["token_reduction"] for r in results) / len(results)
+    avg_reduction = sum(r["context_reduction"] for r in results) / len(results)
     total_hall_full = sum(r["hallucinations_full"] for r in results)
     total_hall_graphrag = sum(r["hallucinations_graphrag"] for r in results)
-    print(f"\n  Average token reduction: {avg_token:.1f}%")
-    print(f"  Total hallucinated endpoints: {total_hall_full} (full spec) vs {total_hall_graphrag} (graphrag)")
-    print("\n  Generated scripts saved to k6/kassandra/results/proof-*.js")
+    avg_cov_full = sum(r["coverage_full"] for r in results) / len(results)
+    avg_cov_graphrag = sum(r["coverage_graphrag"] for r in results) / len(results)
 
-    # Save summary to file
-    output_path = "scripts/graphrag-proof-output.txt"
+    print(f"\n  Average context reduction: {avg_reduction:.1f}%")
+    print(f"  Total hallucinated endpoints: {total_hall_full} (full spec) vs {total_hall_graphrag} (graphrag)")
+    print(f"  Average schema coverage: {avg_cov_full:.1f} (full) vs {avg_cov_graphrag:.1f} (graphrag)")
+    print("\n  Generated scripts saved to k6/kassandra/results/proof-*-qwen-*.js")
+
+    # Save summary
+    output_path = "scripts/graphrag-proof-qwen-output.txt"
     with open(output_path, "w") as f:
-        f.write("GraphRAG A/B Test Results\n")
-        f.write(f"Model: {MODEL}\n")
+        f.write(f"GraphRAG A/B Test Results — Small Model Validation\n")
+        f.write(f"Model: {MODEL} (local, via Ollama)\n")
         f.write(f"Date: {time.strftime('%Y-%m-%d')}\n\n")
         for r in results:
             f.write(f"{r['app']}:\n")
-            f.write(f"  Token reduction:        {r['token_reduction']:.1f}%\n")
-            f.write(f"  Schema coverage (full): {r['coverage_full']}/{r['total_fields']}\n")
-            f.write(f"  Schema coverage (RAG):  {r['coverage_graphrag']}/{r['total_fields']}\n")
-            f.write(f"  Hallucinations (full):  {r['hallucinations_full']}\n")
-            f.write(f"  Hallucinations (RAG):   {r['hallucinations_graphrag']}\n")
-            if r["hallucination_details"]:
-                f.write(f"  Hallucinated paths:     {r['hallucination_details']}\n")
+            f.write(f"  Context reduction:        {r['context_reduction']:.1f}%\n")
+            f.write(f"  Schema coverage (full):   {r['coverage_full']}/{r['total_fields']}\n")
+            f.write(f"  Schema coverage (RAG):    {r['coverage_graphrag']}/{r['total_fields']}\n")
+            f.write(f"  Hallucinations (full):    {r['hallucinations_full']}\n")
+            f.write(f"  Hallucinations (RAG):     {r['hallucinations_graphrag']}\n")
+            if r["hallucination_details_full"]:
+                f.write(f"  Full spec hallucinations: {r['hallucination_details_full']}\n")
+            if r["hallucination_details_graphrag"]:
+                f.write(f"  GraphRAG hallucinations:  {r['hallucination_details_graphrag']}\n")
+            f.write(f"  Latency:                  {r['latency_full']:.1f}s (full) vs {r['latency_graphrag']:.1f}s (graphrag)\n")
             f.write("\n")
-        f.write(f"Average token reduction: {avg_token:.1f}%\n")
+        f.write(f"Average context reduction: {avg_reduction:.1f}%\n")
         f.write(f"Total hallucinations: {total_hall_full} (full) vs {total_hall_graphrag} (graphrag)\n")
+        f.write(f"Average schema coverage: {avg_cov_full:.1f} (full) vs {avg_cov_graphrag:.1f} (graphrag)\n")
     print(f"  Results saved to {output_path}")

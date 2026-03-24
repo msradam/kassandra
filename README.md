@@ -38,10 +38,10 @@ When an MR changes an endpoint, [BFS traversal](https://en.wikipedia.org/wiki/Br
 | Spec | Nodes | Edges | Token reduction |
 |------|-------|-------|-----------------|
 | Midas Bank | 104 | 107 | **94.6%** (6,403 → 347) |
-| Calliope Books | 88 | 88 | **95.3%** (6,407 → 303) |
+| Calliope Books | 88 | 88 | **95.9%** (5,585 → 228) |
 | Hestia Eats | 164 | 180 | **95.0%** (8,967 → 450) |
 
-Zero hallucinated endpoints and identical schema field coverage across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). 57 unit tests, ~0.1s runtime.
+Zero hallucinated endpoints and identical schema field coverage across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). [Cross-validated with Qwen 2.5 Coder 7B](scripts/graphrag-proof-qwen.py) (local, via Ollama): zero hallucinations, perfect coverage on 2/3 tests, and GraphRAG **outperformed** full-spec prompting on the third (15/17 vs 10/17), with 52-68% faster inference ([results](scripts/graphrag-proof-qwen-output.txt)). 57 unit tests, ~0.1s runtime.
 
 ```
 $ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --spec demos/midas-bank/openapi.json --diff-stdin

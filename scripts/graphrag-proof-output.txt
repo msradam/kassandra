@@ -1,6 +1,6 @@
 GraphRAG A/B Test Results
 Model: claude-sonnet-4-20250514
-Date: 2026-03-22
+Date: 2026-03-23
 
 Midas Bank:
   Token reduction:        94.6%
@@ -10,9 +10,9 @@ Midas Bank:
   Hallucinations (RAG):   0
 
 Calliope Books:
-  Token reduction:        95.3%
-  Schema coverage (full): 11/11
-  Schema coverage (RAG):  11/11
+  Token reduction:        95.9%
+  Schema coverage (full): 8/8
+  Schema coverage (RAG):  8/8
   Hallucinations (full):  0
   Hallucinations (RAG):   0
 
@@ -23,5 +23,5 @@ Hestia Eats:
   Hallucinations (full):  0
   Hallucinations (RAG):   0
 
-Average token reduction: 94.9%
+Average token reduction: 95.2%
 Total hallucinations: 0 (full) vs 0 (graphrag)

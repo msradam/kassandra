@@ -1,0 +1,31 @@
+GraphRAG A/B Test Results — Small Model Validation
+Model: qwen2.5-coder:7b (local, via Ollama)
+Date: 2026-03-23
+
+Midas Bank:
+  Context reduction:        97.0%
+  Schema coverage (full):   12/12
+  Schema coverage (RAG):    12/12
+  Hallucinations (full):    0
+  Hallucinations (RAG):     0
+  Latency:                  216.9s (full) vs 145.5s (graphrag)
+
+Calliope Books:
+  Context reduction:        98.4%
+  Schema coverage (full):   8/8
+  Schema coverage (RAG):    8/8
+  Hallucinations (full):    0
+  Hallucinations (RAG):     0
+  Latency:                  162.7s (full) vs 52.2s (graphrag)
+
+Hestia Eats:
+  Context reduction:        97.0%
+  Schema coverage (full):   10/17
+  Schema coverage (RAG):    15/17
+  Hallucinations (full):    0
+  Hallucinations (RAG):     0
+  Latency:                  229.9s (full) vs 92.0s (graphrag)
+
+Average context reduction: 97.5%
+Total hallucinations: 0 (full) vs 0 (graphrag)
+Average schema coverage: 10.0 (full) vs 11.7 (graphrag)
