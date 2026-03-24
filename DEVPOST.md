@@ -25,7 +25,7 @@ The name comes from Greek mythology. Kassandra had the gift of prophecy but was 
 
 ## What it does
 
-**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, starts the application, runs the test against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>This is runtime performance data, not static analysis.</u>
+**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, deploys the application, runs concurrent virtual users against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>This is runtime performance data from a live server under concurrent load, not static analysis.</u>
 
 On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every unit test passed. Every manual API call returned the right data. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. <u>No human prompted it to look for either issue.</u>
 
@@ -53,7 +53,13 @@ No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.
 | [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 8/9 pass | Memory exhaustion risk flagged (`fetchall`) |
 | [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 9/11 pass | Clean, 4,000+ validation checks generated |
 
-Every row is a real k6 run: the agent started the app, sent concurrent HTTP requests, measured latency percentiles, validated response schemas, and posted results back to the MR. The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. Fully automated.
+Every row is a real k6 run: the agent deployed the application, spawned concurrent virtual users that sent live HTTP requests against it, measured latency percentiles under real concurrency, validated response schemas, and posted results back to the MR. These are not static analysis results or mocked responses. k6 hit a running server with parallel load.
+
+![Kassandra Performance Report: threshold pass/fail table and pre-test risk analysis](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/487/293/datas/original.png)
+
+![Mermaid.js latency bar charts and timing breakdown generated from k6 JSON output](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/487/287/datas/gallery.jpg)
+
+The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. Fully automated.
 
 Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/76)–[!80](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/80)) across all three demo apps are available for judges to trigger Kassandra on live.
 
