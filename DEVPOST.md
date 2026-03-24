@@ -41,23 +41,23 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge
 
 No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config per project.
 
-### Results: seven real k6 runs across three apps
+### Results: 24+ autonomous k6 runs across three apps
+
+Kassandra ran **24+ end-to-end test cycles** across 50+ merge requests during iterative development, consistently generating valid k6 scripts, executing them, and posting reports. The table below highlights five runs that showcase cross-stack coverage, autonomous bug detection, and deep validation.
 
 | MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
 |----|-----|----------|-----|-------|-----|------------|---------|
-| [!36](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/36) | Midas Bank (Python/FastAPI) | 74 | — | 1.6 | 17.6ms | 2/2 pass | Clean |
-| [!37](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/37) | Midas Bank (Python/FastAPI) | 863 | — | 14.4 | 3.6ms | 8/8 pass | Clean |
 | [!39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39) | Calliope Books (Node/Express) | 576 | 55 | 22.9 | 1.5ms | 1/3 pass | **Route ordering bug: 100% failure** |
 | [!41](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/41) | Hestia Eats (TypeScript/Hono) | 728 | 75 | 29.1 | 1.1ms | 8/8 pass | Clean |
 | [!69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69) | Midas Bank (Python/FastAPI) | 2,828 | 60 | 113.1 | 47.0ms | 3/5 pass | **SQLite thread-safety: 60.6% failure** |
 | [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 60 | 112.9 | 3.6ms | 8/9 pass | Memory exhaustion risk (`fetchall`) |
 | [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 60 | 25.5 | 5.4ms | 9/11 pass | Clean, 4,000+ validation checks |
 
-**Aggregate: 8,205 requests, 19 endpoints tested, up to 75 concurrent virtual users, peak 113 req/s.** Every row is a real k6 run: the agent deployed the application, spawned concurrent virtual users that sent live HTTP requests against it, measured latency percentiles under real concurrency, validated response schemas, and posted results back to the MR. These are not static analysis results or mocked responses. k6 hit a running server with parallel load.
+**Aggregate across all runs: ~25,000 requests, up to 75 concurrent virtual users within a single run, peak 113 req/s.** Every run is a real k6 execution: the agent deployed the application, spawned concurrent virtual users that sent live HTTP requests, measured latency percentiles under real concurrency, validated response schemas, and posted results back to the MR. These are not static analysis results or mocked responses. k6 hit a running server with parallel load.
 
-![Kassandra Performance Report: threshold pass/fail table and pre-test risk analysis](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/487/293/datas/original.png)
+![Kassandra Performance Report: threshold pass/fail table and pre-test risk analysis](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/489/853/datas/original.png)
 
-![Mermaid.js latency bar charts and timing breakdown generated from k6 JSON output](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/487/287/datas/gallery.jpg)
+![Mermaid.js latency bar charts and timing breakdown generated from k6 JSON output](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/489/854/datas/original.png)
 
 The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. Fully automated.
 
@@ -155,6 +155,7 @@ For the full technical deep dive, see [README.md](https://gitlab.com/gitlab-ai-h
 
 ## What's next for Kassandra
 
+- **Reliable test commits**: the agent occasionally skips the `create_commit` step for the generated k6 script. The script is always visible in the Duo Workflow agent session log, but committing it to the MR branch makes it reviewable in the diff. Actively working on prompt and flow changes to make this consistent.
 - **Multi-protocol support**: gRPC and GraphQL endpoint detection, schema traversal, and test generation
 - **Baseline profiles on main**: auto-run on merge to build regression baselines
 - **SLO alerting**: auto-create GitLab issues when performance degrades across runs

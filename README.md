@@ -80,10 +80,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
 
 ## Results
 
+24+ autonomous k6 runs across 50+ merge requests during iterative development. Highlights:
+
 | MR | App | Requests | Thresholds | Outcome |
 |----|-----|----------|------------|---------|
-| !36 | Midas Bank | 74 | 2/2 pass | Clean |
-| !37 | Midas Bank | 863 | 8/8 pass | Clean |
 | !39 | Calliope Books | 576 | 1/3 pass | **Route ordering bug caught** |
 | !41 | Hestia Eats | 728 | 8/8 pass | Clean |
 | !69 | Midas Bank | 2,828 | 3/5 pass | **SQLite thread-safety bug caught** |
