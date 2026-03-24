@@ -15,7 +15,7 @@ Companies that do load test see the difference. [fuboTV uses Grafana k6](https:/
 
 But performance testing doesn't scale with development velocity. Teams ship endpoints faster than they can test them. Someone still has to write and maintain the load test scripts. Most teams don't.
 
-In conversation at [ObservabilityCon 2025](https://grafana.com/events/observabilitycon/2025/), a member of the Grafana k6 team confirmed that **script maintenance is a consistent pain point** they see across k6 users: teams fall behind on updating test scripts to match their evolving APIs, and having test results surfaced directly in the merge request keeps developers in their workflow instead of context-switching to a separate dashboard.
+I raised this problem with a member of the Grafana k6 team at [ObservabilityCon 2025](https://grafana.com/events/observabilitycon/2025/). He confirmed that **script maintenance is a consistent pain point** they see across k6 users: teams fall behind on updating test scripts to match their evolving APIs, and having test results surfaced directly in the merge request keeps developers in their workflow instead of context-switching to a separate dashboard.
 
 [Grafana k6](https://k6.io/) supports [shift-left testing](https://grafana.com/docs/k6/latest/testing-guides/test-types/) in CI/CD pipelines. [Schemathesis](https://schemathesis.io/) does schema-based fuzzing. [Dredd](https://dredd.org/) does contract validation. k6 Cloud handles execution. None of them read a diff, generate a targeted load test, run it, and post the results back to the MR. **To my knowledge, no existing tool closes this loop.**
 
