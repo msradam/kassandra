@@ -59,7 +59,7 @@ Kassandra ran **24+ end-to-end test cycles** across 50+ merge requests during it
 
 ![Mermaid.js latency bar charts and timing breakdown generated from k6 JSON output](https://d112y698adiu2z.cloudfront.net/photos/production/software_photos/004/489/854/datas/original.png)
 
-The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. Fully automated.
+The Duo Workflow runner is a lightweight container, so these runs are scoped as pre-merge validation, not production-scale load simulations. That's by design. The value at the MR stage is catching threshold violations, validating response schemas, and surfacing anti-patterns early, targeted at the code that just changed. The architecture is runner-agnostic: the agent logic (diff → GraphRAG → k6 script → execute → report) doesn't depend on the container. A runner with Docker Compose or a staging environment would handle full-stack applications with external databases. The `AGENTS.md` config already abstracts the startup command. Fully automated.
 
 Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/76)–[!80](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/80)) across all three demo apps are available for judges to trigger Kassandra on live.
 
