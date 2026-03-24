@@ -25,7 +25,7 @@ The name comes from Greek mythology. Kassandra had the gift of prophecy but was 
 
 ## What it does
 
-**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, deploys the application, runs concurrent virtual users against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>Kassandra includes static risk analysis, but it doesn't stop there — it generates and executes real k6 load tests against a running server under concurrent load, then reports what actually happened.</u>
+**Kassandra is the full loop: diff to test to execution to verdict.** It generates a k6 load test, deploys the application, runs concurrent virtual users against it, and reports what actually happened under load. Real latency numbers. Real pass/fail thresholds. Real bugs caught. <u>Kassandra includes static risk analysis, but doesn't stop there: it generates and executes real k6 load tests against a running server under concurrent load, then reports what actually happened.</u>
 
 On [MR !69](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/69), every API call returned the correct response. The endpoint worked perfectly in serial. Under load, **the endpoint failed 60.6% of requests**. Kassandra diagnosed the root cause autonomously: SQLite thread-safety under FastAPI's thread pool. On [MR !39](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/39), it caught an Express.js route ordering bug. **100% failure rate**, root cause diagnosed, fix recommended. <u>No human prompted it to look for either issue.</u>
 
@@ -37,7 +37,7 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge
 4. **Generates a k6 load test** with [open-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/) and per-endpoint SLO thresholds, then validates responses against the OpenAPI spec: status codes, content types, body fields, schema structure
 5. **Commits the test** to the MR branch (fully auditable in code review)
 6. **Runs the test**: starts the app, executes k6, shuts everything down
-7. **Posts the report** as an MR comment: [Mermaid](https://mermaid.js.org/) latency bar charts and pie charts, threshold pass/fail tables, per-endpoint breakdowns, timing phase analysis, regression detection. The report is self-contained — a developer reading the MR comment immediately sees what's broken, why, and how to fix it, without needing to know anything about Kassandra.
+7. **Posts the report** as an MR comment: [Mermaid](https://mermaid.js.org/) latency bar charts and pie charts, threshold pass/fail tables, per-endpoint breakdowns, timing phase analysis, regression detection. The report is self-contained: a developer reading the MR comment immediately sees what's broken, why, and how to fix it, without needing to know anything about Kassandra.
 
 No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config per project.
 
