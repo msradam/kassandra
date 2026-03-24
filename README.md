@@ -82,13 +82,13 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
 
 24+ autonomous k6 runs across 50+ merge requests during iterative development. Highlights:
 
-| MR | App | Requests | Thresholds | Outcome |
-|----|-----|----------|------------|---------|
-| !39 | Calliope Books | 576 | 1/3 pass | **Route ordering bug caught** |
-| !41 | Hestia Eats | 728 | 8/8 pass | Clean |
-| !69 | Midas Bank | 2,828 | 3/5 pass | **SQLite thread-safety bug caught** |
-| !74 | Midas Bank | 2,830 | 8/9 pass | Risk: `fetchall()` flagged |
-| !75 | Calliope Books | 306 | 9/11 pass | 4,000+ validation checks |
+| MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
+|----|-----|----------|-----|-------|-----|------------|---------|
+| !39 | Calliope Books | 576 | 55 | 22.9 | 1.5ms | 1/3 pass | **Route ordering bug caught** |
+| !41 | Hestia Eats | 728 | 75 | 29.1 | 1.1ms | 8/8 pass | Clean |
+| !69 | Midas Bank | 2,828 | 60 | 113.1 | 47.0ms | 3/5 pass | **SQLite thread-safety bug caught** |
+| !74 | Midas Bank | 2,830 | 60 | 112.9 | 3.6ms | 8/9 pass | Risk: `fetchall()` flagged |
+| !75 | Calliope Books | 306 | 60 | 25.5 | 5.4ms | 9/11 pass | 4,000+ validation checks |
 
 MR !69 caught a SQLite thread-safety bug that passes every unit test but fails under concurrent load. FastAPI runs requests in a thread pool, but the SQLite connection wasn't thread-safe. The endpoint failed 60.6% of requests under load. Kassandra diagnosed the exact error and recommended the fix.
 

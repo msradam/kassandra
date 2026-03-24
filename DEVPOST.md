@@ -71,7 +71,7 @@ Five additional open MRs ([!76](https://gitlab.com/gitlab-ai-hackathon/participa
 
 Kassandra's k6 scripts run unsupervised against a live server. A wrong field name in a validation check means a misleading test failure. Dumping a full OpenAPI spec into the prompt forces the model to chase [`$ref` pointers](https://swagger.io/docs/specification/v3_0/using-ref/) at inference time while simultaneously writing a k6 script. GraphRAG pre-resolves those `$ref` chains into an explicit typed tree: every field pre-associated with its parent schema and endpoint. The model gets only the schemas reachable from the changed endpoints, with no pointer chasing required.
 
-The result: <u>zero hallucinated endpoints and ~95% fewer input tokens</u> across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. See [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) for the full technical deep dive.
+The result: <u>zero hallucinated endpoints and ~95% fewer input tokens</u> across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. For the full graph construction pipeline (node/edge types, BFS depth rationale, diff parsing, novelty analysis), see [ARCHITECTURE.md § OpenAPI GraphRAG](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md#openapi-graphrag).
 
 Sample output for a single endpoint:
 
@@ -114,7 +114,7 @@ Retrieved: 4 schemas, 1 params, auth=yes
 
 **Deterministic reporting.** The LLM produced broken [Mermaid](https://mermaid.js.org/) charts 20% of the time. Report generation is now a [deterministic Python script](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py): k6 JSON to Markdown with color-themed bar and pie charts. The shell script outputs the report, and the agent posts it as the MR note. The LLM reasons. Python charts. k6 executes.
 
-**Single-invocation execution.** Duo Workflow's `run_command` blocks until exit. [`run-k6-test.sh`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/run-k6-test.sh) handles the full lifecycle in one process: app startup, health check, risk analysis, GraphRAG, k6, report generation, cleanup.
+**Single-invocation execution.** Duo Workflow's `run_command` blocks until exit. [`run-k6-test.sh`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/run-k6-test.sh) handles the full lifecycle in one process: app startup, health check, risk analysis, GraphRAG, k6, report generation, cleanup. See [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) for the full design rationale on executor selection, report pipeline, baseline regression detection, and prompt design.
 
 ### Demo applications
 
@@ -151,7 +151,7 @@ Each app uses production frameworks and real database layers (SQLite, sql.js, in
 - **Lean on battle-tested tools.** The agent's job is to generate the right script and interpret the results, not reinvent the load testing engine. k6 handles the hard parts.
 - **Split LLM and deterministic work explicitly.** The LLM reads diffs and generates k6 scripts. Python charts. k6 executes. Every time I let the LLM cross into deterministic territory (Mermaid syntax, threshold arithmetic), reliability dropped.
 
-For the full technical deep dive, see [README.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/README.md) and [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) in the repo.
+For the full technical deep dive: [README.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/README.md) covers setup, GraphRAG CLI usage, and per-spec token reduction numbers. [ARCHITECTURE.md](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md) covers graph construction, BFS depth rationale, executor selection, report pipeline, baseline regression detection, prompt design, and the novelty analysis.
 
 ## What's next for Kassandra
 
