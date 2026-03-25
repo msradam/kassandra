@@ -2,6 +2,10 @@
 
 > Performance prophecy for every merge request. Kassandra turns code diffs into load tests, executes them, and catches regressions before production does.
 
+**Repository:** https://gitlab.com/gitlab-ai-hackathon/participants/3286613
+**Published Agent:** https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/automate/agents/1004714/
+**Demo Video:** https://youtu.be/pOGnr2fnxGk
+
 ## Summary
 **Kassandra is a Duo Workflow agent that auto-generates [Grafana k6](https://k6.io/) load tests from GitLab merge request diffs, executes them against the live application, and reports real runtime results.** Mention Kassandra on an MR and it handles the rest: reads the diff, retrieves relevant API schemas via OpenAPI GraphRAG, generates a load test, starts the app, runs k6 ([30k+ GitHub stars](https://github.com/grafana/k6), open-source), and posts a performance report with actual latency numbers, Mermaid charts, and regression detection. No tests to write. No pipelines to configure. One config file per project.
 
