@@ -39,17 +39,17 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any GitLab merge
 2. **Retrieves relevant schemas** via OpenAPI GraphRAG (~95% token reduction, [A/B verified](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py))
 3. **Scans the diff for risks**: N+1 queries, unbounded SELECTs, `fetchall()`, missing pagination
 4. **Generates a k6 load test** with [open-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/), per-endpoint SLO thresholds, and deep response validation
-5. **Commits the test** to the MR branch (fully auditable in code review)
+5. **Commits the test** to the MR branch (when the full flow completes)
 6. **Runs the test**: starts the app, executes k6, shuts everything down
 7. **Posts the report**: [Mermaid](https://mermaid.js.org/) latency charts, threshold tables, per-endpoint breakdowns, timing analysis, regression detection
 
 No CI YAML changes. No per-project agent code. One [`AGENTS.md`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/AGENTS.md) config per project.
 
-### Results: 24 completed k6 runs out of 37 triggers
+### Results: 23 completed k6 runs out of 37 triggers
 
-Kassandra was triggered 37 times across MRs !36–!75 during active development. **24 runs completed end-to-end**: the agent generated a valid k6 script, started the application, executed the test, and posted a structured report to the MR. The other 13 triggers didn't produce reports, largely because the agent was being actively iterated on: new features (GraphRAG integration, Mermaid report generation, risk analysis) changed the prompt and flow between runs, and Duo Workflow's non-deterministic tool routing meant each prompt revision needed several attempts to stabilize. Every run that reached k6 execution produced a valid report.
+Kassandra was triggered 37 times across MRs !36–!75 during active development. **23 runs completed end-to-end**: the agent generated a valid k6 script, started the application, executed the test, and posted a structured report to the MR. The other 14 triggers didn't produce reports, largely because the agent was being actively iterated on: new features (GraphRAG integration, Mermaid report generation, risk analysis) changed the prompt and flow between runs, and Duo Workflow's non-deterministic tool routing meant each prompt revision needed several attempts to stabilize. Every run that reached k6 execution produced a valid report.
 
-The table below highlights five runs that showcase cross-stack coverage, autonomous bug detection, and deep validation. All 24 completed runs are visible on the [project's merge requests](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests).
+The table below highlights five runs that showcase cross-stack coverage, autonomous bug detection, and deep validation. All 23 completed runs are visible on the [project's merge requests](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests).
 
 | MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
 |----|-----|----------|-----|-------|-----|------------|---------|
@@ -59,14 +59,14 @@ The table below highlights five runs that showcase cross-stack coverage, autonom
 | [!74](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/74) | Midas Bank (Python/FastAPI) | 2,830 | 60 | 112.9 | 3.6ms | 8/9 pass | Memory exhaustion risk (`fetchall`) |
 | [!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75) | Calliope Books (Node/Express) | 306 | 60 | 25.5 | 5.4ms | 9/11 pass | Clean, 4,000+ validation checks |
 
-**Aggregate across all 24 completed runs: ~24,200 requests, up to 75 concurrent virtual users, peak 113 req/s.** Every run is a real k6 execution against a running server with parallel load, not static analysis or mocked responses.
+**Aggregate across all 23 completed runs: ~24,400 requests, up to 75 concurrent virtual users, peak 113 req/s.** Every run is a real k6 execution against a running server with parallel load, not static analysis or mocked responses.
 
-The two flagship catches (MR !69, MR !39) are coarse failures invisible in serial testing and obvious under concurrent load. But the data also contains subtler signal. The `spending_trends` endpoint on Midas Bank was tested across 12 runs at varying VU counts:
+The two flagship catches (MR !69, MR !39) are coarse failures invisible in serial testing and obvious under concurrent load. But the data also contains subtler signal. The `spending_trends` endpoint on Midas Bank was tested across 13 runs at varying VU counts:
 
-- **5 VUs** (!50–!52): p95 held at 3.6–3.9ms
-- **13 VUs** (!53): p95 jumped to 6.7ms (+81%)
-- **60 VUs** (!63–!66): stabilized at 3.6–5.2ms after tuning
-- **60 VUs + thread-safety bug** (!69): exploded to 38.3ms
+- **5 VUs** (!50–!51): p95 at 3.7–4.1ms
+- **13 VUs** (!53): p95 jumped to 8.4ms (+127%)
+- **60 VUs** (!63–!66): p95 ranged 3.9–6.7ms across tuning iterations
+- **60 VUs + thread-safety bug** (!69): p95 exploded to 47.0ms
 
 The latency degradation was visible across runs before the catastrophic failure. Automated baseline comparison ([`generate-report.py`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py) flags >10% p95 drift) would surface these trends without manual inspection.
 
@@ -88,9 +88,9 @@ Kassandra's k6 scripts run unsupervised against a live server. A wrong field nam
 
 The result: <u>zero hallucinated endpoints and ~95% fewer input tokens</u> across all [A/B test scenarios](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-output.txt)). Implemented as a zero-dependency custom [`DiGraph`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/graphrag/digraph.py) (114 lines, standard library only). 57 unit tests. For the full graph construction pipeline (node/edge types, BFS depth rationale, diff parsing, novelty analysis), see [ARCHITECTURE.md § OpenAPI GraphRAG](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/ARCHITECTURE.md#openapi-graphrag).
 
-**Cross-model validation.** The deterministic graph retrieval scales beyond cloud-hosted models. [A/B tested with Qwen 2.5 Coder 7B](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-qwen.py) running locally via Ollama ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-qwen-output.txt)): the 7B model achieved perfect schema coverage on two of three tests (12/12, 8/8) and **outperformed full-spec prompting on the third** (15/17 vs 10/17 on Hestia Eats, where the full spec drowned the small model in noise). Zero hallucinated endpoints across all runs, **52-68% faster inference** from reduced context. The graph retrieval is model-agnostic: it produces the same deterministic subgraph regardless of what consumes it.
+**Cross-model validation.** The deterministic graph retrieval scales beyond cloud-hosted models. [A/B tested with Qwen 2.5 Coder 7B](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-qwen.py) running locally via Ollama ([results](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-qwen-output.txt)): the 7B model achieved perfect schema coverage on two of three tests (12/12, 8/8) and **outperformed full-spec prompting on the third** (15/17 vs 10/17 on Hestia Eats, where the full spec drowned the small model in noise). Zero hallucinated endpoints across all runs, **33-68% faster inference** from reduced context. The graph retrieval is model-agnostic: it produces the same deterministic subgraph regardless of what consumes it.
 
-Kassandra currently requires an [OpenAPI](https://www.openapis.org/) spec. OpenAPI is the [industry standard](https://www.openapis.org/membership/members) for REST API description, and most modern frameworks ([FastAPI](https://fastapi.tiangolo.com/), [NestJS](https://docs.nestjs.com/openapi/introduction), [Spring Boot](https://springdoc.org/)) auto-generate specs from code. GraphQL and gRPC introspection support are planned, since both protocols expose schema structure that maps naturally to the same graph-based retrieval.
+Kassandra currently requires an [OpenAPI](https://www.openapis.org/) spec. OpenAPI is the [industry standard](https://www.openapis.org/about) for REST API description, and most modern frameworks ([FastAPI](https://fastapi.tiangolo.com/), [NestJS](https://docs.nestjs.com/openapi/introduction), [Spring Boot](https://springdoc.org/)) auto-generate specs from code. GraphQL and gRPC introspection support are planned, since both protocols expose schema structure that maps naturally to the same graph-based retrieval.
 
 Sample output for a single endpoint:
 
@@ -149,7 +149,7 @@ Each app uses production frameworks and real database layers (SQLite, sql.js, in
 
 ## Challenges I ran into
 
-**Non-deterministic orchestration.** Duo Workflow routes tools via an LLM, which means the same prompt can produce different tool sequences across runs. 13 of 37 triggers didn't produce reports, but these were spread across active development: prompt revisions, new features (GraphRAG, Mermaid reports, risk analysis), and flow restructuring meant the agent was a moving target. Each change required experimentation to stabilize. This is what iterating on an agentic system looks like: the feedback loop is trigger, observe, adjust, retrigger.
+**Non-deterministic orchestration.** Duo Workflow routes tools via an LLM, which means the same prompt can produce different tool sequences across runs. 14 of 37 triggers didn't produce reports, but these were spread across active development: prompt revisions, new features (GraphRAG, Mermaid reports, risk analysis), and flow restructuring meant the agent was a moving target. Each change required experimentation to stabilize. This is what iterating on an agentic system looks like: the feedback loop is trigger, observe, adjust, retrigger.
 
 **Duo Workflow context limits.** Long prompts cause the agent to enter tool-routing loops. Structuring the prompt as a strict numbered checklist with inline k6 generation rules, and keeping dynamic context minimal via GraphRAG, was the key fix.
 
@@ -163,7 +163,7 @@ Each app uses production frameworks and real database layers (SQLite, sql.js, in
 - **OpenAPI GraphRAG**: a novel approach to structured API context for LLMs. ~95% token reduction, zero hallucinated endpoints, [A/B verified](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof.py) with Claude Sonnet and [cross-validated with Qwen 2.5 Coder 7B](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/graphrag-proof-qwen.py). 114 lines, zero dependencies, 57 tests.
 - **Polyglot**: Python, JavaScript, TypeScript. Three stacks, same agent, zero code changes.
 - **4,000+ validation checks** on a single MR ([!75](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/merge_requests/75)), all generated from the OpenAPI spec.
-- **Fully auditable**: every k6 script is committed to the MR branch, visible in code review.
+- **Auditable by design**: generated k6 scripts are committed to the MR branch when the agent completes the full flow, and always visible in the Duo Workflow session log.
 
 ## What I learned
 
@@ -177,7 +177,7 @@ For the full technical deep dive: [README.md](https://gitlab.com/gitlab-ai-hacka
 
 ## What's next for Kassandra
 
-- **Automated baseline comparison**: the latency data across 24 runs already contains regression signal (spending_trends p95 jumped +81% before the thread-safety bug). [`generate-report.py`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py) flags >10% p95 drift against stored baselines. Next step: auto-run on merge to main to build those baselines.
+- **Automated baseline comparison**: the latency data across 23 runs already contains regression signal (spending_trends p95 jumped +127% before the thread-safety bug). [`generate-report.py`](https://gitlab.com/gitlab-ai-hackathon/participants/3286613/-/blob/main/scripts/generate-report.py) flags >10% p95 drift against stored baselines. Next step: auto-run on merge to main to build those baselines.
 - **Reliable test commits**: the agent occasionally skips `create_commit` for the generated k6 script. The script is always visible in the agent session log, but committing it to the MR branch makes it reviewable in the diff.
 - **Multi-protocol support**: GraphQL's [introspection schema](https://graphql.org/learn/introspection/) is natively graph-structured, making it a natural fit for the same BFS retrieval approach. gRPC reflection similarly.
 - **SLO alerting**: auto-create GitLab issues when performance degrades across runs

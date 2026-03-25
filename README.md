@@ -23,7 +23,7 @@ Comment `@ai-kassandra-performance-test-gitlab-ai-hackathon` on any MR. The agen
 3. Retrieves relevant API schemas via OpenAPI GraphRAG (~95% input token reduction)
 4. Scans the diff for performance anti-patterns (N+1 queries, unbounded SELECTs, missing pagination)
 5. Generates a k6 script with [open-model executors](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/), per-endpoint SLO thresholds, deep response validation
-6. Commits the test to the MR branch
+6. Commits the test to the MR branch (when the full flow completes)
 7. Starts the app, runs k6, shuts everything down
 8. Posts a performance report with Mermaid charts, threshold tables, regression detection
 
@@ -41,7 +41,7 @@ When an MR changes an endpoint, [BFS traversal](https://en.wikipedia.org/wiki/Br
 | Calliope Books | 88 | 88 | **95.9%** (5,585 → 228) |
 | Hestia Eats | 164 | 180 | **95.0%** (8,967 → 450) |
 
-Zero hallucinated endpoints and identical schema field coverage across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). [Cross-validated with Qwen 2.5 Coder 7B](scripts/graphrag-proof-qwen.py) (local, via Ollama): zero hallucinations, perfect coverage on 2/3 tests, and GraphRAG **outperformed** full-spec prompting on the third (15/17 vs 10/17), with 52-68% faster inference ([results](scripts/graphrag-proof-qwen-output.txt)). 57 unit tests, ~0.1s runtime.
+Zero hallucinated endpoints and identical schema field coverage across all A/B test scenarios. [Verified via A/B test against the Anthropic API](scripts/graphrag-proof.py) ([results](scripts/graphrag-proof-output.txt)). [Cross-validated with Qwen 2.5 Coder 7B](scripts/graphrag-proof-qwen.py) (local, via Ollama): zero hallucinations, perfect coverage on 2/3 tests, and GraphRAG **outperformed** full-spec prompting on the third (15/17 vs 10/17), with 33-68% faster inference ([results](scripts/graphrag-proof-qwen-output.txt)). 57 unit tests, ~0.1s runtime.
 
 ```
 $ echo '+@app.post("/api/transactions/transfer")' | uv run python -m graphrag --spec demos/midas-bank/openapi.json --diff-stdin
@@ -80,7 +80,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical deep dive.
 
 ## Results
 
-24 completed end-to-end runs out of 37 triggers during active development. Incomplete runs reflect iterative prompt and flow changes, not k6 failures: every run that reached test execution produced a valid report. ~24,200 total requests across all runs. Highlights:
+23 completed end-to-end runs out of 37 triggers during active development. Incomplete runs reflect iterative prompt and flow changes, not k6 failures: every run that reached test execution produced a valid report. ~24,400 total requests across all runs. Highlights:
 
 | MR | App | Requests | VUs | req/s | p95 | Thresholds | Outcome |
 |----|-----|----------|-----|-------|-----|------------|---------|

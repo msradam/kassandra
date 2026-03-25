@@ -97,7 +97,7 @@ The matched paths are fuzzy-matched against the graph's endpoint nodes. Kassandr
 | Calliope Books | 88 | 88 | 5,585 | 228 | 95.9% |
 | Hestia Eats | 164 | 180 | 8,967 | 450 | 95.0% |
 
-Verified via [A/B test against the Anthropic API](scripts/graphrag-proof.py) using Claude Sonnet ([results](scripts/graphrag-proof-output.txt)). Both conditions (full spec vs. GraphRAG) were tested on the same endpoints with the same system prompt. Across all three test scenarios, GraphRAG produced identical schema field coverage and zero hallucinated endpoints. [Cross-validated with Qwen 2.5 Coder 7B](scripts/graphrag-proof-qwen.py) (local, via Ollama, [results](scripts/graphrag-proof-qwen-output.txt)): the 7B model achieved zero hallucinations and GraphRAG outperformed full-spec prompting on the largest spec (15/17 vs 10/17 on Hestia Eats), with 52-68% faster inference.
+Verified via [A/B test against the Anthropic API](scripts/graphrag-proof.py) using Claude Sonnet ([results](scripts/graphrag-proof-output.txt)). Both conditions (full spec vs. GraphRAG) were tested on the same endpoints with the same system prompt. Across all three test scenarios, GraphRAG produced identical schema field coverage and zero hallucinated endpoints. [Cross-validated with Qwen 2.5 Coder 7B](scripts/graphrag-proof-qwen.py) (local, via Ollama, [results](scripts/graphrag-proof-qwen-output.txt)): the 7B model achieved zero hallucinations and GraphRAG outperformed full-spec prompting on the largest spec (15/17 vs 10/17 on Hestia Eats), with 33-68% faster inference.
 
 ### Novelty
 
